@@ -1,0 +1,147 @@
+name: Build Application
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
+  pull_request:
+    branches: [ main ]
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: '0.0.1'
+
+jobs:
+  build-macos:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, macos-14] # macos-latest for Intel, macos-14 for Apple Silicon
+        python-version: ['3.10']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Build application
+      run: python build.py
+    
+    - name: List build directory
+      run: ls -R dist/
+    
+    - name: Create ZIP for macOS app
+      run: |
+        cd dist
+        for d in *.app; do
+          zip -r "${d%.app}.zip" "$d"
+        done
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: huggingface-model-downloader-macos-${{ runner.arch }}
+        path: |
+          dist/*.zip
+        if-no-files-found: error
+
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.10']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Build application
+      run: python build.py
+    
+    - name: List build directory
+      run: dir dist
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: huggingface-model-downloader-windows-x64
+        path: dist/*.exe
+        if-no-files-found: error
+
+  create-release:
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) || github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Get version
+      id: get_version
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+        elif [[ $GITHUB_REF == refs/tags/v* ]]; then
+          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        else
+          echo "version=$(date +'%Y.%m.%d')-dev" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: dist
+    
+    - name: List downloaded artifacts
+      run: ls -R dist/
+    
+    - name: Create Release Notes
+      run: |
+        echo "# Hugging Face Model Downloader v${{ steps.get_version.outputs.version }}" > release_notes.md
+        echo "" >> release_notes.md
+        echo "## Downloads" >> release_notes.md
+        echo "- Windows (x64)" >> release_notes.md
+        echo "- macOS Intel (x64)" >> release_notes.md
+        echo "- macOS Apple Silicon (arm64)" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "## Changes" >> release_notes.md
+        echo "- Latest build from ${{ github.sha }}" >> release_notes.md
+    
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Version ${{ steps.get_version.outputs.version }}
+        tag_name: v${{ steps.get_version.outputs.version }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        files: |
+          dist/**/*.zip
+          dist/**/*.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
