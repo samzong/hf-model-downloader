@@ -1,0 +1,5 @@
+huggingface_hub[cli]
+PyQt6
+tqdm
+requests
+pyinstaller
