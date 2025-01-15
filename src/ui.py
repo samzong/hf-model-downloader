@@ -8,16 +8,28 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QIcon
 from .downloader import DownloadWorker
+import platform
+import os
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Hugging Face Model Downloader")
-        self.setWindowIcon(QIcon("assets/icon.png"))
+        
+        # Set window icon based on platform
+        system = platform.system().lower()
+        if system == "darwin":
+            icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon.icns")
+        elif system == "windows":
+            icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon.ico")
+        else:
+            icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "icon.png")
+            
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+            
         self.setMinimumWidth(800)
         self.setMinimumHeight(600)
-        # self.setGeometry(100, 100, 800, 600)
-
         
         # Create main widget and layout
         main_widget = QWidget()
@@ -97,8 +109,9 @@ class MainWindow(QMainWindow):
         endpoint_layout = QHBoxLayout()
         endpoint_label = QLabel("Endpoint:")
         self.endpoint_input = QLineEdit()
+        # 预填充镜像站点
         self.endpoint_input.setText("https://hf-mirror.com")
-        self.endpoint_input.setPlaceholderText("default: https://huggingface.co")
+        self.endpoint_input.setPlaceholderText("default: https://hf-mirror.com")
         endpoint_layout.addWidget(endpoint_label)
         endpoint_layout.addWidget(self.endpoint_input)
         layout.addLayout(endpoint_layout)
@@ -116,6 +129,7 @@ class MainWindow(QMainWindow):
         
         # Status Label
         self.status_label = QLabel()
+        self.status_label.setStyleSheet("font-weight: bold;")
         layout.addWidget(self.status_label)
         
         # Log Text Area
@@ -138,20 +152,25 @@ class MainWindow(QMainWindow):
         model_id = self.model_input.text().strip()
         save_path = self.path_input.text().strip()
         token = self.token_input.text().strip() or None
-        endpoint = self.endpoint_input.text().strip() or "https://huggingface.co"
+        
+        # 获取 endpoint
+        endpoint = self.endpoint_input.text().strip()
+        # 如果用户完全清空了输入框，使用默认值
+        if not endpoint:
+            endpoint = "https://hf-mirror.com"
         
         if not model_id:
-            QMessageBox.warning(self, "Error", "Please enter a model ID")
+            self.update_status("Error: Please enter a model ID", error=True)
             return
         
         if not save_path:
-            QMessageBox.warning(self, "Error", "Please select a save path")
+            self.update_status("Error: Please select a save path", error=True)
             return
         
         self.download_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.stop_button.setStyleSheet("QPushButton { background-color: #ff4444; color: white; }")
-        self.status_label.setText("Initializing download...")
+        self.update_status("Initializing download...")
         self.log_text.clear()
         
         self.download_worker = DownloadWorker(model_id, save_path, token, endpoint)
@@ -165,12 +184,15 @@ class MainWindow(QMainWindow):
         if self.download_worker and self.download_worker.isRunning():
             self.stop_button.setEnabled(False)
             self.stop_button.setStyleSheet("")
-            self.status_label.setText("Stopping download...")
+            self.update_status("Stopping download...")
             self.download_worker.cancel_download()
             self.download_button.setEnabled(True)
-            self.status_label.setText("Download stopped")
 
-    def update_status(self, message):
+    def update_status(self, message, error=False):
+        if error:
+            self.status_label.setStyleSheet("font-weight: bold; color: red;")
+        else:
+            self.status_label.setStyleSheet("font-weight: bold;")
         self.status_label.setText(message)
 
     def update_log(self, message):
@@ -184,18 +206,16 @@ class MainWindow(QMainWindow):
         self.download_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.stop_button.setStyleSheet("")
-        self.status_label.setText("Download completed!")
+        self.update_status("✅ Download completed successfully!")
         self.log_text.append("✅ Download completed successfully!")
-        QMessageBox.information(self, "Success", "Model downloaded successfully!")
 
     def download_error(self, error_msg):
         self.download_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.stop_button.setStyleSheet("")
         if "cancelled by user" in error_msg.lower():
-            self.status_label.setText("Download stopped")
+            self.update_status("⏹️ Download stopped by user")
             self.log_text.append("⏹️ Download stopped by user")
         else:
-            self.status_label.setText("Download failed!")
-            self.log_text.append(f"❌ Error: {error_msg}")
-            QMessageBox.critical(self, "Error", f"Download failed: {error_msg}") 
+            self.update_status(f"❌ Error: {error_msg}", error=True)
+            self.log_text.append(f"❌ Error: {error_msg}") 
