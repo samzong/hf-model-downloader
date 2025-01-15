@@ -8,7 +8,7 @@ import logging
 import signal
 import multiprocessing
 from PyQt6.QtCore import QThread, pyqtSignal
-from huggingface_hub import HfFolder, snapshot_download, hf_hub_download
+from huggingface_hub import HfFolder, snapshot_download
 from .utils import cleanup_lock_files, cleanup_environment
 
 logger = logging.getLogger("huggingface_hub")
@@ -52,7 +52,7 @@ class DownloadWorker(QThread):
     status = pyqtSignal(str)
     log = pyqtSignal(str)
     
-    def __init__(self, model_id, save_path, token=None, endpoint="https://hf-mirror.com"):
+    def __init__(self, model_id, save_path, token=None, endpoint="https://huggingface.co"):
         super().__init__()
         self.model_id = model_id
         self.save_path = save_path

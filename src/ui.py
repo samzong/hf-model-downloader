@@ -6,15 +6,18 @@ from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                            QHBoxLayout, QLineEdit, QPushButton, QLabel,
                            QFileDialog, QMessageBox, QTextEdit, QFrame)
 from PyQt6.QtCore import Qt, QUrl
-from PyQt6.QtGui import QDesktopServices
+from PyQt6.QtGui import QDesktopServices, QIcon
 from .downloader import DownloadWorker
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Hugging Face Model Downloader")
+        self.setWindowIcon(QIcon("assets/icon.png"))
         self.setMinimumWidth(800)
         self.setMinimumHeight(600)
+        # self.setGeometry(100, 100, 800, 600)
+
         
         # Create main widget and layout
         main_widget = QWidget()
@@ -39,6 +42,7 @@ class MainWindow(QMainWindow):
             "6. Support resuming transmission from breakpoint"
         )
         help_text.setWordWrap(True)
+        help_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         help_layout.addWidget(help_text)
         
         # Quick Links
@@ -94,6 +98,7 @@ class MainWindow(QMainWindow):
         endpoint_label = QLabel("Endpoint:")
         self.endpoint_input = QLineEdit()
         self.endpoint_input.setText("https://hf-mirror.com")
+        self.endpoint_input.setPlaceholderText("default: https://huggingface.co")
         endpoint_layout.addWidget(endpoint_label)
         endpoint_layout.addWidget(self.endpoint_input)
         layout.addLayout(endpoint_layout)

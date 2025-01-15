@@ -3,3 +3,4 @@ PyQt6
 tqdm
 requests
 pyinstaller
+Pillow
