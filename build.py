@@ -16,7 +16,7 @@ def get_architecture():
 def build_app():
     system = platform.system().lower()
     arch = get_architecture()
-    app_name = "huggingface-model-downloader"
+    app_name = "hf-model-downloader"
     
     # Ensure assets directory exists
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")

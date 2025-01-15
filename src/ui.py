@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
         model_id = self.model_input.text().strip()
         save_path = self.path_input.text().strip()
         token = self.token_input.text().strip() or None
-        endpoint = self.endpoint_input.text().strip() or "https://huggingface.co"
+        endpoint = self.endpoint_input.text().strip() or None
         
         if not model_id:
             QMessageBox.warning(self, "Error", "Please enter a model ID")

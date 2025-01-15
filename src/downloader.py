@@ -6,8 +6,7 @@ import os
 import json
 import logging
 import signal
-import multiprocessing
-from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal, QCoreApplication
 from huggingface_hub import HfFolder, snapshot_download
 from .utils import cleanup_lock_files, cleanup_environment
 
@@ -22,44 +21,20 @@ class LogHandler(logging.Handler):
         msg = self.format(record)
         self.log_signal.emit(msg)
 
-def download_process(repo_id, local_dir, token, endpoint, ignore_patterns):
-    """Separate process for downloading"""
-    try:
-        if token:
-            HfFolder.save_token(token)
-            os.environ['HF_TOKEN'] = token
-        
-        if endpoint:
-            os.environ['HF_ENDPOINT'] = endpoint
-            os.environ['HF_HUB_DISABLE_SSL_VERIFICATION'] = '1'
-
-        return snapshot_download(
-            repo_id=repo_id,
-            local_dir=local_dir,
-            use_auth_token=token,
-            local_dir_use_symlinks=False,
-            resume_download=True,
-            max_workers=8,
-            force_download=False,
-            ignore_patterns=ignore_patterns
-        )
-    except Exception as e:
-        return str(e)
-
 class DownloadWorker(QThread):
     finished = pyqtSignal()
     error = pyqtSignal(str)
     status = pyqtSignal(str)
     log = pyqtSignal(str)
     
-    def __init__(self, model_id, save_path, token=None, endpoint="https://huggingface.co"):
+    def __init__(self, model_id, save_path, token=None, endpoint=None):
         super().__init__()
         self.model_id = model_id
         self.save_path = save_path
         self.token = token
-        self.endpoint = endpoint
+        # 如果用户没有提供 endpoint，使用默认的 huggingface.co
+        self.endpoint = endpoint if endpoint else "https://huggingface.co"
         self.is_cancelled = False
-        self.process = None
         
         # Setup logging handler
         self.log_handler = LogHandler(self.log)
@@ -73,14 +48,6 @@ class DownloadWorker(QThread):
         self.is_cancelled = True
         self.log.emit("Cancelling download...")
         self.status.emit("Cancelling download...")
-        
-        if self.process and self.process.is_alive():
-            self.process.terminate()
-            self.process.join(timeout=1)
-            if self.process.is_alive():
-                self.process.kill()
-                self.process.join()
-        
         self.cleanup()
         self.error.emit("Download cancelled by user")
 
@@ -106,6 +73,9 @@ class DownloadWorker(QThread):
 
     def run(self):
         try:
+            # 禁用 Qt GUI 上下文
+            os.environ["QT_QPA_PLATFORM"] = "minimal"
+            
             # Create model directory
             model_name = self.model_id.split('/')[-1]
             model_dir = os.path.join(self.save_path, model_name)
@@ -120,26 +90,45 @@ class DownloadWorker(QThread):
             if self.is_cancelled:
                 raise Exception("Download cancelled by user")
 
-            # 创建下载进程
-            ctx = multiprocessing.get_context('spawn')
-            self.process = ctx.Process(
-                target=download_process,
-                args=(
-                    self.model_id,
-                    model_dir,
-                    self.token,
-                    self.endpoint,
-                    ["*.h5", "*.ot", "*.msgpack", ".*"]
+            if self.token:
+                HfFolder.save_token(self.token)
+                os.environ['HF_TOKEN'] = self.token
+            
+            if self.endpoint:
+                os.environ['HF_ENDPOINT'] = self.endpoint
+                os.environ['HF_HUB_DISABLE_SSL_VERIFICATION'] = '1'
+
+            try:
+                snapshot_download(
+                    repo_id=self.model_id,
+                    local_dir=model_dir,
+                    use_auth_token=self.token,
+                    local_dir_use_symlinks=False,
+                    resume_download=True,
+                    max_workers=8,
+                    force_download=False,
+                    ignore_patterns=["*.h5", "*.ot", "*.msgpack", ".*"]
                 )
-            )
-            self.process.start()
-            self.process.join()
+            except Exception as e:
+                if "SSLError" in str(e):
+                    self.log.emit("SSL Error detected. Trying to disable SSL verification...")
+                    os.environ['HF_HUB_DISABLE_SSL_VERIFICATION'] = '1'
+                    # 重试下载
+                    snapshot_download(
+                        repo_id=self.model_id,
+                        local_dir=model_dir,
+                        use_auth_token=self.token,
+                        local_dir_use_symlinks=False,
+                        resume_download=True,
+                        max_workers=8,
+                        force_download=False,
+                        ignore_patterns=["*.h5", "*.ot", "*.msgpack", ".*"]
+                    )
+                else:
+                    raise e
 
             if self.is_cancelled:
                 raise Exception("Download cancelled by user")
-            
-            if self.process.exitcode != 0:
-                raise Exception("Download process failed")
 
             # Clean up lock files after successful download
             cleanup_lock_files(model_dir)
@@ -155,35 +144,6 @@ class DownloadWorker(QThread):
                 self.error.emit("Download cancelled by user")
                 return
             
-            # Handle SSL errors specifically
-            if "SSLError" in error_msg:
-                self.log.emit("SSL Error detected. Trying to disable SSL verification...")
-                try:
-                    os.environ['HF_HUB_DISABLE_SSL_VERIFICATION'] = '1'
-                    # 重试下载
-                    ctx = multiprocessing.get_context('spawn')
-                    self.process = ctx.Process(
-                        target=download_process,
-                        args=(
-                            self.model_id,
-                            model_dir,
-                            self.token,
-                            self.endpoint,
-                            ["*.h5", "*.ot", "*.msgpack", ".*"]
-                        )
-                    )
-                    self.process.start()
-                    self.process.join()
-
-                    if self.process.exitcode == 0:
-                        self.log.emit(f"Model downloaded successfully to: {model_dir}")
-                        self.finished.emit()
-                        return
-                    else:
-                        error_msg = "Failed even with SSL verification disabled"
-                except Exception as e2:
-                    error_msg = f"Failed even with SSL verification disabled: {str(e2)}"
-            
             # Try to clean up lock files on error
             try:
                 cleanup_lock_files(model_dir)
@@ -191,4 +151,4 @@ class DownloadWorker(QThread):
                 pass
             self.error.emit(error_msg)
         finally:
-            self.cleanup() 
+            self.cleanup()
