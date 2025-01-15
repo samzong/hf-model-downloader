@@ -4,3 +4,4 @@ tqdm
 requests
 pyinstaller
 Pillow
+psutil>=5.9.0
