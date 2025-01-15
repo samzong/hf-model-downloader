@@ -2,6 +2,8 @@
 
 A cross-platform GUI application for easily downloading Hugging Face models without requiring technical knowledge or setup.
 
+![screenshot](./screenshot.png)
+
 ## Features
 
 - Simple GUI interface for downloading Hugging Face models
