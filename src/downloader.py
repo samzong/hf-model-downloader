@@ -17,11 +17,21 @@ from PyQt6.QtCore import QObject, pyqtSignal
 from huggingface_hub import HfFolder, snapshot_download, HfApi
 from huggingface_hub.constants import HF_HUB_ENABLE_HF_TRANSFER
 from .utils import cleanup_lock_files, cleanup_environment
+from tqdm.auto import tqdm
 
 # 配置日志
 logger = logging.getLogger("huggingface_hub")
 qt_logger = logging.getLogger("PyQt6")
 qt_logger.setLevel(logging.DEBUG)
+
+class DownloadProgressBar(tqdm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._current = self.n
+
+    def update(self, n):
+        super().update(n)
+        self._current += n
 
 def download_model(model_id: str, save_path: str, token: str = None, endpoint: str = None, pipe=None):
     """独立的下载函数，可以被多进程调用"""
@@ -64,11 +74,14 @@ def download_model(model_id: str, save_path: str, token: str = None, endpoint: s
             else:
                 os.environ.pop('HF_HUB_DISABLE_SSL_VERIFICATION', None)
         else:
-            # 使用官方站点时，确保清除相关环境变量
-            os.environ.pop('HF_ENDPOINT', None)
             os.environ.pop('HF_HUB_DISABLE_SSL_VERIFICATION', None)
         
+        # 禁用 HF Transfer，使用标准 HTTPS 下载
         os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'
+        # 设置较大的连接超时
+        os.environ['HF_HUB_DOWNLOAD_TIMEOUT'] = '300'
+        # 启用并发下载
+        os.environ['HF_HUB_ENABLE_CONCURRENT_DOWNLOAD'] = '1'
         
         # 执行下载
         model_dir = os.path.join(save_path, model_id.split('/')[-1])
@@ -83,17 +96,20 @@ def download_model(model_id: str, save_path: str, token: str = None, endpoint: s
         signal.signal(signal.SIGINT, signal_handler)
         
         try:
-            print("Python path:", sys.path)
-            print("Loaded modules:", sys.modules.keys())
-            print("Start method:", multiprocessing.get_start_method())
-            print("Process environment:", os.environ)
+            # 获取CPU核心数，但最多使用16个线程
+            max_workers = min(multiprocessing.cpu_count() * 2, 16)
+            
             result = snapshot_download(
                 repo_id=model_id,
                 local_dir=model_dir,
                 token=token,
                 force_download=False,
-                max_workers=8,
-                ignore_patterns=["*.h5", "*.ot", "*.msgpack", ".*"]
+                max_workers=max_workers,
+                tqdm_class=DownloadProgressBar,
+                ignore_patterns=["*.h5", "*.ot", "*.msgpack", "*.bin", "*.pkl", "*.onnx", ".*"],
+                local_files_only=False,
+                etag_timeout=30,
+                proxies=None,  # 不使用代理
             )
             return True
         except KeyboardInterrupt:
@@ -129,23 +145,28 @@ class PipeWriter:
     def __init__(self, pipe):
         self.pipe = pipe
         self.buffer = ""
+        self.last_progress = ""
     
     def write(self, text):
         # 处理所有输出，包括进度条
-        self.buffer += text
-        if '\n' in self.buffer:
+        if '\r' in text:  # 进度条更新
+            # 清除旧的进度信息
+            self.buffer = text.split('\r')[-1]
+            if self.buffer.strip() and self.buffer != self.last_progress:
+                self.pipe.send(self.buffer)
+                self.last_progress = self.buffer
+        elif '\n' in text:  # 普通日志输出
+            self.buffer += text
             lines = self.buffer.split('\n')
             self.buffer = lines[-1]  # 保留最后一个不完整的行
             for line in lines[:-1]:
-                if line.strip():  # 发送非空行
+                if line.strip() and line != self.last_progress:  # 避免重复发送相同的进度信息
                     self.pipe.send(line)
-        elif '\r' in text:  # 处理进度条的情况
-            if self.buffer.strip():
-                self.pipe.send(self.buffer)
-            self.buffer = ""
+        else:
+            self.buffer += text
     
     def flush(self):
-        if self.buffer.strip():
+        if self.buffer.strip() and self.buffer != self.last_progress:
             self.pipe.send(self.buffer)
             self.buffer = ""
 
@@ -244,7 +265,7 @@ class DownloadWorker(QObject):
             except Exception as e:
                 self._logger.error(f"Error terminating download process: {e}")
         
-        # 清理环境和文件
+        # 清理环境和文件，但保持 endpoint 设置
         self.cleanup()
         self._is_running = False
         self.error.emit("Download cancelled by user")
@@ -277,6 +298,7 @@ class DownloadWorker(QObject):
             self._download_process.start()
             
             # 等待下载完成或取消
+            download_completed = False
             while self._download_process.is_alive():
                 if self._cancel_event.is_set():
                     self._logger.debug("Cancel event detected, terminating process")
@@ -284,18 +306,22 @@ class DownloadWorker(QObject):
                     break
                 self._download_process.join(timeout=0.1)
             
+            # 检查下载是否成功完成
+            if self._download_process.exitcode == 0:
+                download_completed = True
+            
             # 停止输出处理线程
             self._cancel_event.set()
             if self._output_thread:
                 self._output_thread.join()
             
             # 处理下载结果
-            if not self._cancel_event.is_set() and self._download_process.exitcode == 0:
+            if download_completed:
                 cleanup_lock_files(self.model_dir)
                 self.log.emit(f"Model downloaded successfully to: {self.model_dir}")
                 self._logger.debug("Download completed successfully")
                 self.finished.emit()
-            elif self._cancel_event.is_set():
+            elif self._cancel_event.is_set() and not download_completed:
                 raise Exception("Download cancelled by user")
             else:
                 raise Exception("Download process failed")
@@ -334,8 +360,16 @@ class DownloadWorker(QObject):
         """清理资源和临时文件"""
         try:
             self._logger.debug("Starting cleanup")
+            # 保存当前的 endpoint 设置
+            current_endpoint = os.environ.get('HF_ENDPOINT')
+            
             # 清理环境变量
             cleanup_environment()
+            
+            # 恢复 endpoint 设置
+            if current_endpoint:
+                os.environ['HF_ENDPOINT'] = current_endpoint
+            
             self._logger.debug("Environment cleanup complete")
             
             # 移除日志处理器

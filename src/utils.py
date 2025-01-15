@@ -27,7 +27,8 @@ def cleanup_lock_files(directory):
 
 def cleanup_environment():
     """Clean up environment variables."""
-    env_vars = ['HF_ENDPOINT', 'HF_TOKEN', 'HF_HUB_DISABLE_SSL_VERIFICATION']
+    # 只清理认证和 SSL 相关的环境变量，保留 endpoint 设置
+    env_vars = ['HF_TOKEN', 'HF_HUB_DISABLE_SSL_VERIFICATION']
     for var in env_vars:
         if var in os.environ:
             del os.environ[var] 
