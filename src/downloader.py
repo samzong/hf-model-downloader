@@ -110,6 +110,7 @@ def download_model(model_id: str, save_path: str, token: str = None, endpoint: s
                 local_files_only=False,
                 etag_timeout=30,
                 proxies=None,  # 不使用代理
+                endpoint=endpoint
             )
             return True
         except KeyboardInterrupt:
