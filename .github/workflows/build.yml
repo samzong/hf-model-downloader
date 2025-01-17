@@ -19,12 +19,11 @@ on:
         default: '0.0.1'
 
 jobs:
-  build-macos:
-    runs-on: ${{ matrix.os }}
+  build-macos-arm64:
+    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, macos-13] # macos-latest for Apple Silicon, macos-13 for Intel
         python-version: ['3.10']
     
     steps:
@@ -50,12 +49,6 @@ jobs:
     - name: Create DMG for macOS
       run: |
         cd dist
-        # Determine architecture based on runner
-        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-          ARCH="arm64"
-        else
-          ARCH="x86_64"
-        fi
         
         for d in *.app; do
           mv "$d" "HF Model Downloader.app"
@@ -68,14 +61,66 @@ jobs:
           echo '    "HF Model Downloader.app": (140, 120),' >> settings.py
           echo '    "Applications": (500, 120)' >> settings.py
           echo '}' >> settings.py
-          
-          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-${ARCH}.dmg"
+          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-arm64.dmg"
         done
       
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: hf-model-downloader-macos-${{ matrix.os }}-${ARCH}
+        name: hf-model-downloader-macos-arm64
+        path: |
+          dist/*.dmg
+        if-no-files-found: error
+
+  build-macos-x86_64:
+    runs-on: macos-13
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install dmgbuild
+    
+    - name: Build application
+      run: python build.py
+    
+    - name: List build directory
+      run: ls -R dist/
+    
+    - name: Create DMG for macOS
+      run: |
+        cd dist
+        
+        for d in *.app; do
+          mv "$d" "HF Model Downloader.app"
+          echo 'from dmgbuild import *' > settings.py
+          echo 'format = "UDBZ"' >> settings.py
+          echo 'files = ["HF Model Downloader.app"]' >> settings.py
+          echo 'symlinks = { "Applications": "/Applications" }' >> settings.py
+          echo 'badge_icon = "HF Model Downloader.app/Contents/Resources/icon-windowed.icns"' >> settings.py
+          echo 'icon_locations = {' >> settings.py
+          echo '    "HF Model Downloader.app": (140, 120),' >> settings.py
+          echo '    "Applications": (500, 120)' >> settings.py
+          echo '}' >> settings.py
+          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-x86_64.dmg"
+        done
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: hf-model-downloader-macos-x86_64
         path: |
           dist/*.dmg
         if-no-files-found: error
@@ -113,7 +158,7 @@ jobs:
         if-no-files-found: error
 
   create-release:
-    needs: [build-macos, build-windows]
+    needs: [build-macos-arm64, build-macos-x86_64, build-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) || github.event_name == 'workflow_dispatch'
     
@@ -139,7 +184,11 @@ jobs:
     - name: Flatten directory structure
       run: |
         cd dist
-        find . -type f -name "*.dmg" -o -name "*.exe" -exec mv {} . \;
+        # Move all DMG files to root
+        find . -type f -name "*.dmg" -exec mv {} . \;
+        # Move all EXE files to root
+        find . -type f -name "*.exe" -exec mv {} . \;
+        # Clean up empty directories
         rm -rf */
     
     - name: List downloaded artifacts
