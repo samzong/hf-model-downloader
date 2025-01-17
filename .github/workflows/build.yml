@@ -50,6 +50,13 @@ jobs:
     - name: Create DMG for macOS
       run: |
         cd dist
+        # Determine architecture based on runner
+        if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+          ARCH="arm64"
+        else
+          ARCH="x86_64"
+        fi
+        
         for d in *.app; do
           mv "$d" "HF Model Downloader.app"
           echo 'from dmgbuild import *' > settings.py
@@ -62,13 +69,13 @@ jobs:
           echo '    "Applications": (500, 120)' >> settings.py
           echo '}' >> settings.py
           
-          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-${{ matrix.arch }}.dmg"
+          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-${ARCH}.dmg"
         done
       
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: hf-model-downloader-macos-${{ matrix.os }}-${{ matrix.arch }}
+        name: hf-model-downloader-macos-${{ matrix.os }}-${ARCH}
         path: |
           dist/*.dmg
         if-no-files-found: error

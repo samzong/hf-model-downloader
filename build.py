@@ -42,7 +42,7 @@ def build_app():
         icon_path = os.path.join(assets_dir, "icon.icns")
         cmd.extend([
             "--icon", icon_path,
-            "--osx-bundle-identifier", "com.huggingface.modeldownloader",
+            "--osx-bundle-identifier", "com.samzong.hf-model-downloader",
             "--target-arch", arch,  # Specify target architecture for macOS
         ])
         output_name = f"{app_name}-macos-{arch}.app"  # Explicitly include macos in name
