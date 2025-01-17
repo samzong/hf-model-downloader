@@ -30,7 +30,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -38,6 +38,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install dmgbuild
     
     - name: Build application
       run: python build.py
@@ -45,19 +46,30 @@ jobs:
     - name: List build directory
       run: ls -R dist/
     
-    - name: Create ZIP for macOS app
+    - name: Create DMG for macOS
       run: |
         cd dist
         for d in *.app; do
-          zip -r "${d%.app}.zip" "$d"
+          mv "$d" "HF Model Downloader.app"
+          echo 'from dmgbuild import *' > settings.py
+          echo 'format = "UDBZ"' >> settings.py
+          echo 'files = ["HF Model Downloader.app"]' >> settings.py
+          echo 'symlinks = { "Applications": "/Applications" }' >> settings.py
+          echo 'badge_icon = "HF Model Downloader.app/Contents/Resources/icon-windowed.icns"' >> settings.py
+          echo 'icon_locations = {' >> settings.py
+          echo '    "HF Model Downloader.app": (140, 120),' >> settings.py
+          echo '    "Applications": (500, 120)' >> settings.py
+          echo '}' >> settings.py
+          
+          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-${{ runner.arch }}.dmg"
         done
       
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
-        name: huggingface-model-downloader-macos-${{ runner.arch }}
+        name: hf-model-downloader-macos-${{ matrix.os }}-${{ runner.arch }}
         path: |
-          dist/*.zip
+          dist/*.dmg
         if-no-files-found: error
 
   build-windows:
@@ -70,7 +82,7 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -86,7 +98,7 @@ jobs:
       run: dir dist
       
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: huggingface-model-downloader-windows-x64
         path: dist/*.exe
@@ -112,7 +124,7 @@ jobs:
         fi
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: dist
     
@@ -121,19 +133,19 @@ jobs:
     
     - name: Create Release Notes
       run: |
-        echo "# Hugging Face Model Downloader v${{ steps.get_version.outputs.version }}" > release_notes.md
+        echo "# HF Model Downloader v${{ steps.get_version.outputs.version }}" > release_notes.md
         echo "" >> release_notes.md
         echo "## Downloads" >> release_notes.md
         echo "- Windows (x64)" >> release_notes.md
-        echo "- macOS Intel (x64)" >> release_notes.md
-        echo "- macOS Apple Silicon (arm64)" >> release_notes.md
+        echo "- macOS Intel (x64) - Built on macos-latest" >> release_notes.md
+        echo "- macOS Apple Silicon (arm64) - Built on macos-14" >> release_notes.md
         echo "" >> release_notes.md
         echo "## Changes" >> release_notes.md
         echo "- Latest build from ${{ github.sha }}" >> release_notes.md
     
     - name: Create Release
       id: create_release
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         name: Version ${{ steps.get_version.outputs.version }}
         tag_name: v${{ steps.get_version.outputs.version }}
@@ -141,7 +153,7 @@ jobs:
         draft: false
         prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         files: |
-          dist/**/*.zip
+          dist/**/*.dmg
           dist/**/*.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
