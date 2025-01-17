@@ -9,7 +9,7 @@ def get_architecture():
     if machine in ['arm64', 'aarch64']:
         return 'arm64'
     elif machine in ['x86_64', 'amd64']:
-        return 'x64'
+        return 'x86_64'
     else:
         return machine
 
@@ -28,7 +28,7 @@ def build_app():
         "pyinstaller",
         "--clean",
         "--noconfirm",
-        f"--name={app_name}-{arch}",  # Add architecture to name
+        f"--name={app_name}",  # Remove arch from base name
         "--add-data", "README.md:.",
         "--hidden-import", "huggingface_hub",
         "--hidden-import", "tqdm",
@@ -45,14 +45,14 @@ def build_app():
             "--osx-bundle-identifier", "com.huggingface.modeldownloader",
             "--target-arch", arch,  # Specify target architecture for macOS
         ])
-        output_name = f"{app_name}-{arch}.app"
+        output_name = f"{app_name}-macos-{arch}.app"  # Explicitly include macos in name
         
     elif system == "windows":  # Windows
         icon_path = os.path.join(assets_dir, "icon.ico")
         cmd.extend([
             "--icon", icon_path,
         ])
-        output_name = f"{app_name}-{arch}.exe"
+        output_name = f"{app_name}-windows-{arch}.exe"  # Explicitly include windows in name
     
     # Check if icon exists
     if not os.path.exists(icon_path):

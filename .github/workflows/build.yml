@@ -22,8 +22,9 @@ jobs:
   build-macos:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [macos-latest, macos-14] # macos-latest for Intel, macos-14 for Apple Silicon
+        os: [macos-latest, macos-13] # macos-latest for Apple Silicon, macos-13 for Intel
         python-version: ['3.10']
     
     steps:
@@ -61,13 +62,13 @@ jobs:
           echo '    "Applications": (500, 120)' >> settings.py
           echo '}' >> settings.py
           
-          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-${{ runner.arch }}.dmg"
+          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-${{ matrix.arch }}.dmg"
         done
       
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: hf-model-downloader-macos-${{ matrix.os }}-${{ runner.arch }}
+        name: hf-model-downloader-macos-${{ matrix.os }}-${{ matrix.arch }}
         path: |
           dist/*.dmg
         if-no-files-found: error
@@ -100,7 +101,7 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: huggingface-model-downloader-windows-x64
+        name: hf-model-downloader-windows-x64
         path: dist/*.exe
         if-no-files-found: error
 
@@ -127,6 +128,12 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: dist
+        
+    - name: Flatten directory structure
+      run: |
+        cd dist
+        find . -type f -name "*.dmg" -o -name "*.exe" -exec mv {} . \;
+        rm -rf */
     
     - name: List downloaded artifacts
       run: ls -R dist/
@@ -137,8 +144,8 @@ jobs:
         echo "" >> release_notes.md
         echo "## Downloads" >> release_notes.md
         echo "- Windows (x64)" >> release_notes.md
-        echo "- macOS Intel (x64) - Built on macos-latest" >> release_notes.md
-        echo "- macOS Apple Silicon (arm64) - Built on macos-14" >> release_notes.md
+        echo "- macOS Intel (x86_64)" >> release_notes.md
+        echo "- macOS Apple Silicon (arm64)" >> release_notes.md
         echo "" >> release_notes.md
         echo "## Changes" >> release_notes.md
         echo "- Latest build from ${{ github.sha }}" >> release_notes.md
@@ -152,8 +159,6 @@ jobs:
         body_path: release_notes.md
         draft: false
         prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        files: |
-          dist/**/*.dmg
-          dist/**/*.exe
+        files: dist/*
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
