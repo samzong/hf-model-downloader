@@ -2,6 +2,7 @@ import os
 import platform
 import subprocess
 import sys
+import shutil
 
 def get_architecture():
     """Get the current system architecture."""
@@ -22,6 +23,10 @@ def build_app():
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
     if not os.path.exists(assets_dir):
         os.makedirs(assets_dir)
+    
+    # 注意：图标生成现在是 Makefile 中的独立步骤
+    # 请先运行 `make icons` 生成图标，然后再运行此脚本
+    # 或者直接使用 `make build` 命令，它会自动依赖 icons 目标
     
     # Base PyInstaller command
     cmd = [
@@ -56,34 +61,39 @@ def build_app():
     
     # Check if icon exists
     if not os.path.exists(icon_path):
-        print(f"Warning: Icon file not found at {icon_path}")
-        print(f"Please place the appropriate icon file in the assets directory:")
+        print(f"警告: 图标文件未找到: {icon_path}")
+        print(f"请确保已运行 `make icons` 生成图标文件，或将适当的图标文件放置在 assets 目录中:")
         print("- macOS: assets/icon.icns")
         print("- Windows: assets/icon.ico")
+        print("您可以继续构建，但应用将没有自定义图标")
     
     # Add main script
     cmd.append("main.py")
     
     try:
-        print(f"Building {output_name} for {system} ({arch})...")
-        print(f"Command: {' '.join(cmd)}")
+        print(f"构建 {output_name} 用于 {system} ({arch})...")
+        print(f"命令: {' '.join(cmd)}")
         
         # Run PyInstaller
         subprocess.run(cmd, check=True)
+        
+        # 注意：图标修复现在是 Makefile 中的独立步骤 (make fix-icons)
+        # 此处不再自动修复图标问题，而是依赖 Makefile 中的步骤
         
         # Print build information
         output_path = os.path.join("dist", output_name)
         if os.path.exists(output_path):
             size_mb = os.path.getsize(output_path) / (1024 * 1024)
-            print("\nBuild Summary:")
-            print(f"- Output: dist/{output_name}")
-            print(f"- Size: {size_mb:.2f} MB")
-            print(f"- System: {system}")
-            print(f"- Architecture: {arch}")
-            print(f"- Python Version: {platform.python_version()}")
+            print("\n构建摘要:")
+            print(f"- 输出: dist/{output_name}")
+            print(f"- 大小: {size_mb:.2f} MB")
+            print(f"- 系统: {system}")
+            print(f"- 架构: {arch}")
+            print(f"- Python 版本: {platform.python_version()}")
+            print("\n提示: 如需修复图标问题，请运行 `make fix-icons`")
         
     except subprocess.CalledProcessError as e:
-        print(f"Error: Build failed with error: {e}")
+        print(f"错误: 构建失败: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
