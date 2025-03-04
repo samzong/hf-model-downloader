@@ -38,6 +38,11 @@ jobs:
             About:
               url: https://github.com/samzong
               target: __blank
+          
+          cacheFileStat: true
+
+          footer: |
+            Copyright © {{idocYear}} <a href="https://github.com/samzong" target="_blank">samzong</a><br />
           EOF
 
       - run: npm install idoc@1 -g
