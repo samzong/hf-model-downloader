@@ -3,6 +3,9 @@ import platform
 import subprocess
 import sys
 
+# Set UTF-8 encoding for all I/O operations
+os.environ["PYTHONUTF8"] = "1"
+
 def get_architecture():
     """Get the current system architecture."""
     machine = platform.machine().lower()
