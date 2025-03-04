@@ -2,7 +2,15 @@ import os
 import platform
 import subprocess
 import sys
-import shutil
+import io
+
+# Set UTF-8 encoding for all I/O operations
+os.environ["PYTHONUTF8"] = "1"
+
+# Force stdout to use UTF-8 encoding on Windows
+if platform.system().lower() == "windows":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def get_architecture():
     """Get the current system architecture."""
@@ -24,9 +32,9 @@ def build_app():
     if not os.path.exists(assets_dir):
         os.makedirs(assets_dir)
     
-    # 注意：图标生成现在是 Makefile 中的独立步骤
-    # 请先运行 `make icons` 生成图标，然后再运行此脚本
-    # 或者直接使用 `make build` 命令，它会自动依赖 icons 目标
+    # Note: Icon generation is now a separate step in the Makefile
+    # Please run `make icons` to generate icons before running this script
+    # Or directly use the `make build` command, which will automatically depend on the icons target
     
     # Base PyInstaller command
     cmd = [
@@ -61,39 +69,39 @@ def build_app():
     
     # Check if icon exists
     if not os.path.exists(icon_path):
-        print(f"警告: 图标文件未找到: {icon_path}")
-        print(f"请确保已运行 `make icons` 生成图标文件，或将适当的图标文件放置在 assets 目录中:")
+        print(f"Warning: Icon file not found: {icon_path}")
+        print(f"Please make sure you've run `make icons` to generate icon files, or place appropriate icon files in the assets directory:")
         print("- macOS: assets/icon.icns")
         print("- Windows: assets/icon.ico")
-        print("您可以继续构建，但应用将没有自定义图标")
+        print("You can continue building, but the application will not have a custom icon")
     
     # Add main script
     cmd.append("main.py")
     
     try:
-        print(f"构建 {output_name} 用于 {system} ({arch})...")
-        print(f"命令: {' '.join(cmd)}")
+        print(f"Building {output_name} for {system} ({arch})...")
+        print(f"Command: {' '.join(cmd)}")
         
         # Run PyInstaller
         subprocess.run(cmd, check=True)
         
-        # 注意：图标修复现在是 Makefile 中的独立步骤 (make fix-icons)
-        # 此处不再自动修复图标问题，而是依赖 Makefile 中的步骤
+        # Note: Icon fixing is now a separate step in the Makefile (make fix-icons)
+        # We no longer automatically fix icon issues here, but rely on the steps in the Makefile
         
         # Print build information
         output_path = os.path.join("dist", output_name)
         if os.path.exists(output_path):
             size_mb = os.path.getsize(output_path) / (1024 * 1024)
-            print("\n构建摘要:")
-            print(f"- 输出: dist/{output_name}")
-            print(f"- 大小: {size_mb:.2f} MB")
-            print(f"- 系统: {system}")
-            print(f"- 架构: {arch}")
-            print(f"- Python 版本: {platform.python_version()}")
-            print("\n提示: 如需修复图标问题，请运行 `make fix-icons`")
+            print("\nBuild Summary:")
+            print(f"- Output: dist/{output_name}")
+            print(f"- Size: {size_mb:.2f} MB")
+            print(f"- System: {system}")
+            print(f"- Architecture: {arch}")
+            print(f"- Python Version: {platform.python_version()}")
+            print("\nTip: To fix icon issues, run `make fix-icons`")
         
     except subprocess.CalledProcessError as e:
-        print(f"错误: 构建失败: {e}")
+        print(f"Error: Build failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
