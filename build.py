@@ -2,6 +2,15 @@ import os
 import platform
 import subprocess
 import sys
+import io
+
+# Set UTF-8 encoding for all I/O operations
+os.environ["PYTHONUTF8"] = "1"
+
+# Force stdout to use UTF-8 encoding on Windows
+if platform.system().lower() == "windows":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def get_architecture():
     """Get the current system architecture."""
@@ -22,6 +31,10 @@ def build_app():
     assets_dir = os.path.join(os.path.dirname(__file__), "assets")
     if not os.path.exists(assets_dir):
         os.makedirs(assets_dir)
+    
+    # Note: Icon generation is now a separate step in the Makefile
+    # Please run `make icons` to generate icons before running this script
+    # Or directly use the `make build` command, which will automatically depend on the icons target
     
     # Base PyInstaller command
     cmd = [
@@ -56,10 +69,11 @@ def build_app():
     
     # Check if icon exists
     if not os.path.exists(icon_path):
-        print(f"Warning: Icon file not found at {icon_path}")
-        print(f"Please place the appropriate icon file in the assets directory:")
+        print(f"Warning: Icon file not found: {icon_path}")
+        print(f"Please make sure you've run `make icons` to generate icon files, or place appropriate icon files in the assets directory:")
         print("- macOS: assets/icon.icns")
         print("- Windows: assets/icon.ico")
+        print("You can continue building, but the application will not have a custom icon")
     
     # Add main script
     cmd.append("main.py")
@@ -71,6 +85,9 @@ def build_app():
         # Run PyInstaller
         subprocess.run(cmd, check=True)
         
+        # Note: Icon fixing is now a separate step in the Makefile (make fix-icons)
+        # We no longer automatically fix icon issues here, but rely on the steps in the Makefile
+        
         # Print build information
         output_path = os.path.join("dist", output_name)
         if os.path.exists(output_path):
@@ -81,9 +98,10 @@ def build_app():
             print(f"- System: {system}")
             print(f"- Architecture: {arch}")
             print(f"- Python Version: {platform.python_version()}")
+            print("\nTip: To fix icon issues, run `make fix-icons`")
         
     except subprocess.CalledProcessError as e:
-        print(f"Error: Build failed with error: {e}")
+        print(f"Error: Build failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
