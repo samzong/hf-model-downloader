@@ -1,6 +1,14 @@
-# Hugging Face Model Downloader
+# hf-model-downloader
 
-A cross-platform GUI application for easily downloading Hugging Face models without requiring technical knowledge or setup.
+<div align="center">
+  <img src="./assets/icon.png" alt="hf-model-downloader logo" width="200" />
+  <br />
+  <p>A cross-platform GUI application for easily downloading Hugging Face models without requiring technical knowledge or setup.</p>
+  <p>
+    <a href="https://github.com/samzong/hf-model-downloader/releases"><img src="https://img.shields.io/github/v/release/samzong/hf-model-downloader" alt="Release Version" /></a>
+    <a href="https://github.com/samzong/hf-model-downloader/blob/main/LICENSE"><img src="https://img.shields.io/github/license/samzong/hf-model-downloader" alt="MIT License" /></a>
+  </p>
+</div>
 
 ![screenshot](./screenshot.png)
 
@@ -42,4 +50,4 @@ pyinstaller --onefile --windowed main.py
 
 ## License
 
-MIT License 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
