@@ -41,7 +41,7 @@ def build_app():
         "pyinstaller",
         "--clean",
         "--noconfirm",
-        f"--name={app_name}",  # Remove arch from base name
+        f"--name={app_name}",
         "--add-data", "README.md:.",
         "--hidden-import", "huggingface_hub",
         "--hidden-import", "tqdm",
@@ -62,10 +62,13 @@ def build_app():
         
     elif system == "windows":  # Windows
         icon_path = os.path.join(assets_dir, "icon.ico")
+        # Use architecture-specific name for PyInstaller
+        win_app_name = f"{app_name}-windows-{arch}"
+        cmd[cmd.index(f"--name={app_name}")] = f"--name={win_app_name}"
         cmd.extend([
             "--icon", icon_path,
         ])
-        output_name = f"{app_name}-windows-{arch}"  # Directory name for onedir mode
+        output_name = win_app_name  # Directory name for onedir mode
     
     # Check if icon exists
     if not os.path.exists(icon_path):
@@ -114,9 +117,10 @@ def build_app():
             print(f"- Python Version: {platform.python_version()}")
             
             if system == "windows":
-                exe_path = os.path.join(output_path, f"{app_name}.exe")
+                exe_name = f"{output_name}.exe" if system == "windows" else f"{app_name}.exe"
+                exe_path = os.path.join(output_path, exe_name)
                 if os.path.exists(exe_path):
-                    print(f"- Executable: {app_name}.exe")
+                    print(f"- Executable: {exe_name}")
             
             print("\nTip: To fix icon issues, run `make fix-icons`")
         
@@ -160,10 +164,15 @@ def create_windows_installer(app_dir_name, app_name):
         with open("installer.nsi", "r", encoding="utf-8") as f:
             nsi_content = f.read()
         
-        # Replace the placeholder with actual directory name
+        # Replace the placeholder with actual directory name and executable name
         nsi_content = nsi_content.replace(
             'file /r "dist\\${APPNAME}-windows-*\\*"',
             f'file /r "dist\\{app_dir_name}\\*"'
+        )
+        # Update executable references to use the new name
+        nsi_content = nsi_content.replace(
+            'hf-model-downloader.exe',
+            f'{app_dir_name}.exe'
         )
         
         # Write temporary NSI file
