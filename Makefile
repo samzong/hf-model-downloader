@@ -25,13 +25,6 @@ install:
 	$(PIP) install -r requirements.txt
 	$(PIP) install dmgbuild
 
-# 生成图标
-.PHONY: icons
-icons:
-	@echo "生成应用图标..."
-	$(PYTHON) icon_generator.py --verbose --source $(ASSETS_DIR)/icon.png --output-dir $(ASSETS_DIR) --padding 15 --radius 22
-	@echo "图标生成完成"
-
 # 清理构建目录
 .PHONY: clean
 clean:
@@ -60,7 +53,6 @@ help:
 	@echo "HF Model Downloader Makefile 帮助"
 	@echo "可用目标:"
 	@echo "  install      - 安装所需依赖"
-	@echo "  icons        - 生成和修复应用图标"
 	@echo "  clean        - 清理构建目录"
 	@echo "  build        - 构建应用"
 	@echo "  dmg          - 创建 DMG 包"
