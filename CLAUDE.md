@@ -34,7 +34,7 @@ make clean
 ### Building with PyInstaller directly
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed main.py
+pyinstaller --onedir --windowed main.py
 ```
 
 ## Architecture Overview

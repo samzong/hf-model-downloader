@@ -46,7 +46,7 @@ To create standalone executables:
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed main.py
+pyinstaller --onedir --windowed main.py
 ```
 
 ## License

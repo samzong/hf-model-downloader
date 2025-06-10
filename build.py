@@ -46,7 +46,7 @@ def build_app():
         "--hidden-import", "huggingface_hub",
         "--hidden-import", "tqdm",
         "--hidden-import", "requests",
-        "--onefile",  # Create a single file
+        "--onedir",  # Create a directory bundle
         "--windowed",  # No console window
     ]
     
