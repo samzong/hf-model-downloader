@@ -207,6 +207,17 @@ jobs:
     - name: List downloaded artifacts
       run: ls -R dist/
     
+    - name: Verify files for release
+      run: |
+        echo "Checking release files..."
+        for file in dist/*.dmg dist/*.exe; do
+          if [ -f "$file" ]; then
+            echo "✓ Found: $file ($(stat -c%s "$file" 2>/dev/null || stat -f%z "$file") bytes)"
+          else
+            echo "✗ Missing: $file"
+          fi
+        done
+    
     - name: Create Release Notes
       run: |
         echo "# HF Model Downloader v${{ steps.get_version.outputs.version }}" > release_notes.md
@@ -219,15 +230,22 @@ jobs:
         echo "## Changes" >> release_notes.md
         echo "- Latest build from ${{ github.sha }}" >> release_notes.md
     
+    - name: Wait before release (avoid file handle issues)
+      run: sleep 2
+    
     - name: Create Release
       id: create_release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v1
       with:
         name: Version ${{ steps.get_version.outputs.version }}
         tag_name: v${{ steps.get_version.outputs.version }}
         body_path: release_notes.md
         draft: false
         prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        files: dist/*
+        files: |
+          dist/*.dmg
+          dist/*.exe
+        fail_on_unmatched_files: false
+        generate_release_notes: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
