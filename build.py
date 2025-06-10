@@ -140,11 +140,23 @@ def build_app():
 def create_windows_installer(app_dir_name, app_name):
     """Create Windows installer using NSIS"""
     try:
+        print(f"Checking for app directory: dist/{app_dir_name}")
+        app_dir_path = os.path.join("dist", app_dir_name)
+        
+        if not os.path.exists(app_dir_path):
+            print(f"✗ App directory not found: {app_dir_path}")
+            return False
+        
+        print(f"✓ App directory found: {app_dir_path}")
+        print(f"Contents: {os.listdir(app_dir_path)}")
+        
         # Check if NSIS is available
-        subprocess.run(["makensis", "/VERSION"], check=True, capture_output=True)
+        print("Checking NSIS availability...")
+        result = subprocess.run(["makensis", "/VERSION"], check=True, capture_output=True, text=True)
+        print(f"NSIS version: {result.stdout.strip()}")
         
         # Update NSIS script with actual directory name
-        nsi_content = None
+        print("Updating NSIS script...")
         with open("installer.nsi", "r", encoding="utf-8") as f:
             nsi_content = f.read()
         
@@ -155,27 +167,46 @@ def create_windows_installer(app_dir_name, app_name):
         )
         
         # Write temporary NSI file
-        with open("installer_temp.nsi", "w", encoding="utf-8") as f:
+        temp_nsi_path = "installer_temp.nsi"
+        with open(temp_nsi_path, "w", encoding="utf-8") as f:
             f.write(nsi_content)
         
+        print(f"✓ Temporary NSI script created: {temp_nsi_path}")
+        
         # Build installer
-        subprocess.run(["makensis", "installer_temp.nsi"], check=True)
+        print("Building installer with NSIS...")
+        result = subprocess.run(["makensis", temp_nsi_path], capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            print(f"✗ NSIS build failed:")
+            print(f"STDOUT: {result.stdout}")
+            print(f"STDERR: {result.stderr}")
+            return False
+        
+        print(f"NSIS output: {result.stdout}")
         
         # Clean up
-        os.remove("installer_temp.nsi")
+        os.remove(temp_nsi_path)
         
-        print("✓ Windows installer created: hf-model-downloader-installer.exe")
-        return True
+        # Verify installer was created
+        installer_path = "hf-model-downloader-installer.exe"
+        if os.path.exists(installer_path):
+            installer_size = os.path.getsize(installer_path) / (1024 * 1024)
+            print(f"✓ Windows installer created: {installer_path} ({installer_size:.2f} MB)")
+            return True
+        else:
+            print(f"✗ Installer file not found: {installer_path}")
+            return False
         
-    except subprocess.CalledProcessError:
-        print("⚠ NSIS not found. Skipping installer creation.")
-        print("  To create Windows installer:")
-        print("  1. Install NSIS: https://nsis.sourceforge.io/Download")
-        print("  2. Add NSIS to PATH")
-        print("  3. Run: makensis installer.nsi")
+    except subprocess.CalledProcessError as e:
+        print(f"✗ NSIS command failed: {e}")
+        if e.stderr:
+            print(f"Error output: {e.stderr}")
         return False
     except Exception as e:
         print(f"⚠ Failed to create installer: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 if __name__ == "__main__":

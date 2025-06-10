@@ -17,17 +17,16 @@ RequestExecutionLevel admin ;Require admin rights on NT6+ (When UAC is turned on
 InstallDir "$PROGRAMFILES64\${COMPANYNAME}\${APPNAME}"
 
 ; rtf or txt file - remember if it is txt, it must be in the DOS text format (\r\n)
-LicenseData "LICENSE"
+; LicenseData "LICENSE"
 
 ; This will be in the installer/uninstaller's title bar
 Name "${APPNAME}"
-Icon "assets\icon.ico"
+; Icon "assets\icon.ico"
 outFile "hf-model-downloader-installer.exe"
 
 !include LogicLib.nsh
 
-; Just three pages - license agreement, install location, and installation
-page license
+; Just two pages - install location and installation (no license)
 page directory
 Page instfiles
 
