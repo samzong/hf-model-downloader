@@ -243,4 +243,19 @@ jobs:
         fail_on_unmatched_files: false
         generate_release_notes: false
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trigger-homebrew-update:
+    needs: [create-release, build-and-upload]
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.prerelease }}
+    
+    steps:
+      - name: Trigger Homebrew update
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GH_PAT }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/dispatches \
+            -d '{"event_type":"trigger-homebrew-update","client_payload":{"version":"v${{ needs.create-release.outputs.version }}"}}'
+            
