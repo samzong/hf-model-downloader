@@ -246,7 +246,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   trigger-homebrew-update:
-    needs: [create-release, build-and-upload]
+    needs: [create-release]
     runs-on: ubuntu-latest
     if: ${{ !github.event.release.prerelease }}
     
