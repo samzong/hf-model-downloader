@@ -33,7 +33,7 @@ class DownloadProgressBar(tqdm):
         super().update(n)
         self._current += n
 
-def download_model(model_id: str, save_path: str, token: str = None, endpoint: str = None, pipe=None):
+def download_model(model_id: str, save_path: str, token: str = None, endpoint: str = None, pipe=None, repo_type: str = "model"):
     """独立的下载函数，可以被多进程调用"""
     try:
         print("\n=== Download Process Debug Info ===")
@@ -84,7 +84,7 @@ def download_model(model_id: str, save_path: str, token: str = None, endpoint: s
         os.environ['HF_HUB_ENABLE_CONCURRENT_DOWNLOAD'] = '1'
         
         # 执行下载
-        model_dir = os.path.join(save_path, model_id.split('/')[-1])
+        repo_dir = os.path.join(save_path, model_id.split('/')[-1])
         
         # 设置信号处理，确保可以正确响应终止信号
         def signal_handler(signum, frame):
@@ -101,7 +101,8 @@ def download_model(model_id: str, save_path: str, token: str = None, endpoint: s
             
             result = snapshot_download(
                 repo_id=model_id,
-                local_dir=model_dir,
+                repo_type=repo_type,
+                local_dir=repo_dir,
                 token=token,
                 force_download=False,
                 max_workers=max_workers,
@@ -177,12 +178,13 @@ class DownloadWorker(QObject):
     status = pyqtSignal(str)
     log = pyqtSignal(str)
     
-    def __init__(self, model_id, save_path, token=None, endpoint=None):
+    def __init__(self, model_id, save_path, token=None, endpoint=None, repo_type="model"):
         super().__init__()
         self.model_id = model_id
         self.save_path = save_path
         self.token = token
         self.endpoint = endpoint if endpoint else "https://huggingface.co"
+        self.repo_type = repo_type
         
         # 设置日志
         self._logger = logging.getLogger("DownloadWorker")
@@ -195,10 +197,10 @@ class DownloadWorker(QObject):
         self._logger.addHandler(self.log_handler)
         qt_logger.addHandler(self.log_handler)
 
-        # 保存模型目录路径
-        self.model_name = self.model_id.split('/')[-1]
-        self.model_dir = os.path.join(self.save_path, self.model_name)
-        self._logger.debug(f"Initialized worker for model {model_id} with save path {save_path}")
+        # 保存仓库目录路径
+        self.repo_name = self.model_id.split('/')[-1]
+        self.repo_dir = os.path.join(self.save_path, self.repo_name)
+        self._logger.debug(f"Initialized worker for {repo_type} {model_id} with save path {save_path}")
         
         # 添加取消事件和进程引用
         self._cancel_event = threading.Event()
@@ -277,10 +279,11 @@ class DownloadWorker(QObject):
         try:
             self._logger.debug("Starting download worker run")
             # 清理现有的锁文件
-            cleanup_lock_files(self.model_dir)
+            cleanup_lock_files(self.repo_dir)
             
-            self.status.emit(f"Downloading model repository to {self.model_dir}...")
-            self.log.emit(f"Starting download of {self.model_id} to {self.model_dir}")
+            repo_type_text = "model" if self.repo_type == "model" else "dataset"
+            self.status.emit(f"Downloading {repo_type_text} repository to {self.repo_dir}...")
+            self.log.emit(f"Starting download of {self.model_id} to {self.repo_dir}")
 
             # 创建管道和输出处理线程
             self._pipe_reader, self._pipe_writer = multiprocessing.Pipe(duplex=False)
@@ -294,7 +297,7 @@ class DownloadWorker(QObject):
             # 在新进程中启动下载任务
             self._download_process = multiprocessing.get_context('spawn').Process(
                 target=download_model,
-                args=(self.model_id, self.save_path, self.token, self.endpoint, pipe_writer)
+                args=(self.model_id, self.save_path, self.token, self.endpoint, pipe_writer, self.repo_type)
             )
             self._download_process.start()
             
@@ -318,8 +321,9 @@ class DownloadWorker(QObject):
             
             # 处理下载结果
             if download_completed:
-                cleanup_lock_files(self.model_dir)
-                self.log.emit(f"Model downloaded successfully to: {self.model_dir}")
+                cleanup_lock_files(self.repo_dir)
+                repo_type_text = "Model" if self.repo_type == "model" else "Dataset"
+                self.log.emit(f"{repo_type_text} downloaded successfully to: {self.repo_dir}")
                 self._logger.debug("Download completed successfully")
                 self.finished.emit()
             elif self._cancel_event.is_set() and not download_completed:
@@ -383,7 +387,7 @@ class DownloadWorker(QObject):
             self._logger.debug("Log handlers removed")
             
             # 清理锁文件
-            cleanup_lock_files(self.model_dir)
+            cleanup_lock_files(self.repo_dir)
             self._logger.debug("Lock files cleaned up")
             
         except Exception as e:

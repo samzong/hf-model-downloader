@@ -4,7 +4,7 @@ User interface for the Model Downloader
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                            QHBoxLayout, QLineEdit, QPushButton, QLabel,
-                           QFileDialog, QMessageBox, QTextEdit, QFrame)
+                           QFileDialog, QMessageBox, QTextEdit, QFrame, QComboBox)
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QIcon
 from .downloader import DownloadWorker
@@ -46,12 +46,13 @@ class MainWindow(QMainWindow):
         help_layout.addWidget(help_title)
         
         help_text = QLabel(
-            "1. Find a model on Hugging Face Hub\n"
-            "2. Copy the model ID (e.g., 'bert-base-uncased' or 'Qwen/Qwen2.5-Coder-1.5B-Instruct')\n"
-            "3. Select a save location\n"
-            "4. For private models, paste your access token\n"
-            "5. Click Download to start\n"
-            "6. Support resuming transmission from breakpoint"
+            "1. Select download type (Model/Dataset)\n"
+            "2. Find a model/dataset on Hugging Face Hub\n"
+            "3. Copy the ID (e.g., 'bert-base-uncased' or 'squad' for datasets)\n"
+            "4. Select a save location\n"
+            "5. For private repositories, paste your access token\n"
+            "6. Click Download to start\n"
+            "7. Support resuming transmission from breakpoint"
         )
         help_text.setWordWrap(True)
         help_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -61,10 +62,13 @@ class MainWindow(QMainWindow):
         links_layout = QHBoxLayout()
         browse_models_btn = QPushButton("🔍 Browse Models")
         browse_models_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/models")))
+        browse_datasets_btn = QPushButton("📊 Browse Datasets")
+        browse_datasets_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/datasets")))
         get_token_btn = QPushButton("🔑 Get Access Token")
         get_token_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/settings/tokens")))
         
         links_layout.addWidget(browse_models_btn)
+        links_layout.addWidget(browse_datasets_btn)
         links_layout.addWidget(get_token_btn)
         help_layout.addLayout(links_layout)
         
@@ -76,14 +80,26 @@ class MainWindow(QMainWindow):
         separator.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(separator)
         
-        # Model ID
-        model_layout = QHBoxLayout()
-        model_label = QLabel("Model ID:")
-        self.model_input = QLineEdit()
-        self.model_input.setPlaceholderText("e.g., bert-base-uncased or Qwen/Qwen2.5-Coder-1.5B-Instruct")
-        model_layout.addWidget(model_label)
-        model_layout.addWidget(self.model_input)
-        layout.addLayout(model_layout)
+        # Download Type
+        type_layout = QHBoxLayout()
+        type_label = QLabel("Type:")
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(["Model", "Dataset"])
+        self.type_combo.setCurrentText("Model")
+        self.type_combo.currentTextChanged.connect(self.on_type_changed)
+        type_layout.addWidget(type_label)
+        type_layout.addWidget(self.type_combo)
+        type_layout.addStretch()  # Add stretch to keep combo box size reasonable
+        layout.addLayout(type_layout)
+        
+        # Repository ID
+        repo_layout = QHBoxLayout()
+        self.repo_label = QLabel("Model ID:")
+        self.repo_input = QLineEdit()
+        self.repo_input.setPlaceholderText("e.g., bert-base-uncased or Qwen/Qwen2.5-Coder-1.5B-Instruct")
+        repo_layout.addWidget(self.repo_label)
+        repo_layout.addWidget(self.repo_input)
+        layout.addLayout(repo_layout)
         
         # Save Path
         path_layout = QHBoxLayout()
@@ -143,15 +159,25 @@ class MainWindow(QMainWindow):
         
         self.download_worker = None
 
+    def on_type_changed(self, type_text):
+        """当下载类型改变时更新UI"""
+        if type_text == "Dataset":
+            self.repo_label.setText("Dataset ID:")
+            self.repo_input.setPlaceholderText("e.g., squad, imdb, wikitext")
+        else:
+            self.repo_label.setText("Model ID:")
+            self.repo_input.setPlaceholderText("e.g., bert-base-uncased or Qwen/Qwen2.5-Coder-1.5B-Instruct")
+
     def browse_path(self):
         path = QFileDialog.getExistingDirectory(self, "Select Save Directory")
         if path:
             self.path_input.setText(path)
 
     def start_download(self):
-        model_id = self.model_input.text().strip()
+        repo_id = self.repo_input.text().strip()
         save_path = self.path_input.text().strip()
         token = self.token_input.text().strip() or None
+        repo_type = self.type_combo.currentText().lower()  # "model" or "dataset"
         
         # 获取 endpoint
         endpoint = self.endpoint_input.text().strip()
@@ -159,8 +185,9 @@ class MainWindow(QMainWindow):
         if not endpoint:
             endpoint = "https://hf-mirror.com"
         
-        if not model_id:
-            self.update_status("Error: Please enter a model ID", error=True)
+        if not repo_id:
+            repo_type_text = "model ID" if repo_type == "model" else "dataset ID"
+            self.update_status(f"Error: Please enter a {repo_type_text}", error=True)
             return
         
         if not save_path:
@@ -173,7 +200,7 @@ class MainWindow(QMainWindow):
         self.update_status("Initializing download...")
         self.log_text.clear()
         
-        self.download_worker = DownloadWorker(model_id, save_path, token, endpoint)
+        self.download_worker = DownloadWorker(repo_id, save_path, token, endpoint, repo_type)
         self.download_worker.finished.connect(self.download_finished)
         self.download_worker.error.connect(self.download_error)
         self.download_worker.status.connect(self.update_status)
