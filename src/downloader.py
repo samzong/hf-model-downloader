@@ -11,7 +11,6 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Optional, Callable
-import threading
 import multiprocessing
 from PyQt6.QtCore import QObject, pyqtSignal
 from huggingface_hub import HfFolder, snapshot_download, HfApi
@@ -23,6 +22,38 @@ from tqdm.auto import tqdm
 logger = logging.getLogger("huggingface_hub")
 qt_logger = logging.getLogger("PyQt6")
 qt_logger.setLevel(logging.DEBUG)
+
+class LoggerManager:
+    """统一管理日志处理器，防止内存泄漏"""
+    _instance = None
+    _handlers = {}
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
+    def get_handler(self, signal):
+        """获取或创建日志处理器"""
+        handler_id = id(signal)
+        if handler_id not in self._handlers:
+            self._handlers[handler_id] = LogHandler(signal)
+        return self._handlers[handler_id]
+    
+    def cleanup_handler(self, signal):
+        """安全清理日志处理器"""
+        handler_id = id(signal)
+        if handler_id in self._handlers:
+            handler = self._handlers.pop(handler_id)
+            # 从所有相关logger中移除
+            for logger_name in ['huggingface_hub', 'DownloadWorker', 'PyQt6']:
+                target_logger = logging.getLogger(logger_name)
+                if handler in target_logger.handlers:
+                    target_logger.removeHandler(handler)
+    
+    def get_active_handlers_count(self):
+        """获取活跃处理器数量（用于监控）"""
+        return len(self._handlers)
 
 class DownloadProgressBar(tqdm):
     def __init__(self, *args, **kwargs):
@@ -96,8 +127,9 @@ def download_model(model_id: str, save_path: str, token: str = None, endpoint: s
         signal.signal(signal.SIGINT, signal_handler)
         
         try:
-            # 获取CPU核心数，但最多使用16个线程
-            max_workers = min(multiprocessing.cpu_count() * 2, 16)
+            # 优化线程数计算：I/O密集型任务使用CPU核心数+2，避免过度配置
+            cpu_count = multiprocessing.cpu_count()
+            max_workers = min(cpu_count + 2, 8)  # 最多8个并发连接
             
             result = snapshot_download(
                 repo_id=model_id,
@@ -190,8 +222,9 @@ class DownloadWorker(QObject):
         self._logger = logging.getLogger("DownloadWorker")
         self._logger.setLevel(logging.DEBUG)
         
-        # 设置日志处理器
-        self.log_handler = LogHandler(self.log)
+        # 使用统一日志管理器
+        self.logger_manager = LoggerManager()
+        self.log_handler = self.logger_manager.get_handler(self.log)
         self.log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         logger.addHandler(self.log_handler)
         self._logger.addHandler(self.log_handler)
@@ -247,22 +280,39 @@ class DownloadWorker(QObject):
                         break
                     time.sleep(0.1)
                 
-                # 如果进程还在运行，强制终止
+                # 如果进程还在运行，渐进式强制终止
                 if self._download_process.is_alive():
-                    self._logger.warning("Process not responding to terminate, forcing kill")
-                    import psutil
+                    self._logger.warning("Process not responding to terminate, applying progressive force")
                     try:
+                        import psutil
                         parent = psutil.Process(self._download_process.pid)
+                        
+                        # 首先尝试终止子进程
                         for child in parent.children(recursive=True):
                             try:
-                                child.kill()  # 使用 kill 而不是 terminate
-                            except psutil.NoSuchProcess:
-                                pass
-                        parent.kill()  # 使用 kill 而不是 terminate
+                                child.terminate()
+                                child.wait(timeout=1)  # 等待1秒
+                            except (psutil.NoSuchProcess, psutil.TimeoutExpired):
+                                try:
+                                    child.kill()  # 子进程无响应时强制终止
+                                except psutil.NoSuchProcess:
+                                    pass
+                        
+                        # 然后终止父进程
+                        try:
+                            parent.wait(timeout=2)  # 等待2秒让进程自然退出
+                        except psutil.TimeoutExpired:
+                            parent.kill()  # 最后手段：强制终止
+                            
                     except psutil.NoSuchProcess:
-                        pass
+                        pass  # 进程已经不存在
                     except Exception as e:
-                        self._logger.error(f"Error killing process: {e}")
+                        self._logger.error(f"Error in progressive process termination: {e}")
+                        # 最后的fallback：直接kill
+                        try:
+                            self._download_process.kill()
+                        except:
+                            pass
                 
                 self._logger.debug("Download process terminated")
             except Exception as e:
@@ -349,7 +399,7 @@ class DownloadWorker(QObject):
     def _process_pipe_output(self):
         """处理管道输出的线程函数"""
         while not self._cancel_event.is_set():
-            if self._pipe_reader.poll(0.1):
+            if self._pipe_reader.poll(0.01):  # 降低轮询间隔至10ms提升响应性
                 try:
                     output = self._pipe_reader.recv()
                     if output == "DOWNLOAD_COMPLETE":
@@ -362,34 +412,65 @@ class DownloadWorker(QObject):
                     continue
 
     def cleanup(self):
-        """清理资源和临时文件"""
+        """增强的资源清理，确保完全释放"""
+        cleanup_errors = []
+        
         try:
-            self._logger.debug("Starting cleanup")
-            # 保存当前的 endpoint 设置
+            self._logger.debug("Starting comprehensive cleanup")
+            
+            # 1. 保存当前的 endpoint 设置
             current_endpoint = os.environ.get('HF_ENDPOINT')
             
-            # 清理环境变量
-            cleanup_environment()
+            # 2. 清理环境变量
+            try:
+                cleanup_environment()
+                self._logger.debug("Environment variables cleaned")
+            except Exception as e:
+                cleanup_errors.append(f"Environment cleanup failed: {e}")
             
-            # 恢复 endpoint 设置
+            # 3. 恢复 endpoint 设置
             if current_endpoint:
                 os.environ['HF_ENDPOINT'] = current_endpoint
             
-            self._logger.debug("Environment cleanup complete")
+            # 4. 清理管道连接
+            try:
+                if hasattr(self, '_pipe_reader') and self._pipe_reader:
+                    self._pipe_reader.close()
+                if hasattr(self, '_pipe_writer') and self._pipe_writer:
+                    self._pipe_writer.close()
+                self._logger.debug("Pipe connections closed")
+            except Exception as e:
+                cleanup_errors.append(f"Pipe cleanup failed: {e}")
             
-            # 移除日志处理器
-            if self.log_handler in logger.handlers:
-                logger.removeHandler(self.log_handler)
-            if self.log_handler in self._logger.handlers:
-                self._logger.removeHandler(self.log_handler)
-            if self.log_handler in qt_logger.handlers:
-                qt_logger.removeHandler(self.log_handler)
-            self._logger.debug("Log handlers removed")
+            # 5. 使用统一管理器清理日志处理器
+            try:
+                if hasattr(self, 'logger_manager'):
+                    self.logger_manager.cleanup_handler(self.log)
+                    self._logger.debug("Log handlers removed")
+            except Exception as e:
+                cleanup_errors.append(f"Log handler cleanup failed: {e}")
             
-            # 清理锁文件
-            cleanup_lock_files(self.repo_dir)
-            self._logger.debug("Lock files cleaned up")
+            # 6. 清理锁文件
+            try:
+                cleanup_lock_files(self.repo_dir)
+                self._logger.debug("Lock files cleaned up")
+            except Exception as e:
+                cleanup_errors.append(f"Lock file cleanup failed: {e}")
             
+            # 7. 重置内部状态
+            self._is_running = False
+            self._download_process = None
+            self._pipe_reader = None
+            self._pipe_writer = None
+            self._output_thread = None
+            
+            if cleanup_errors:
+                error_summary = "; ".join(cleanup_errors)
+                self._logger.warning(f"Cleanup completed with errors: {error_summary}")
+                self.log.emit(f"Warning: Some cleanup operations failed: {error_summary}")
+            else:
+                self._logger.debug("Cleanup completed successfully")
+                
         except Exception as e:
-            self._logger.exception("Error during cleanup")
-            self.log.emit(f"Warning: Cleanup error: {str(e)}")
+            self._logger.exception("Critical error during cleanup")
+            self.log.emit(f"Critical cleanup error: {str(e)}")
