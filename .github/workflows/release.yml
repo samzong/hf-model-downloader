@@ -49,8 +49,25 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
-          semantic-release version --print
-          semantic-release publish
+          # Check what version would be released
+          NEXT_VERSION=$(semantic-release version --print)
+          echo "Next version would be: $NEXT_VERSION"
+          
+          # Execute the actual release
+          semantic-release version
+          
+          # Set outputs for dependent jobs
+          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          
+          # Check if release was actually created by checking if tag exists
+          if git tag --list "v$NEXT_VERSION" | grep -q "v$NEXT_VERSION"; then
+            echo "released=true" >> $GITHUB_OUTPUT
+            echo "tag=v$NEXT_VERSION" >> $GITHUB_OUTPUT
+            echo "✅ Release v$NEXT_VERSION created successfully"
+          else
+            echo "released=false" >> $GITHUB_OUTPUT
+            echo "❌ No release was created"
+          fi
   
   update-homebrew:
     needs: release
