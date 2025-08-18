@@ -76,11 +76,8 @@ endef
 
 .PHONY: help
 help: ## Show this help message
-	@echo "HF Model Downloader - Build System"
-	@echo "=================================="
-	@echo ""
 	@echo "Available targets:"
-	@awk 'BEGIN {FS = ":.*##"; printf "\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##";} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Current configuration:"
 	@echo "  Platform: $(ARCH_NAME)"
@@ -179,6 +176,10 @@ release: ## Execute semantic release (main branch only)
 .PHONY: update-homebrew
 update-homebrew: ## Update Homebrew Cask (requires GH_PAT environment variable)
 	$(call check_version)
+	@if [ -z "$(GH_PAT)" ]; then \
+		$(call log_error,GH_PAT environment variable is required); \
+		exit 1; \
+	fi
 	@if [ ! -x "$(SCRIPTS_DIR)/homebrew-update.sh" ]; then \
 		$(call log_error,Homebrew update script not found or not executable); \
 		exit 1; \
