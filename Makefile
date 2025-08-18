@@ -69,7 +69,7 @@ endef
 define check_build_deps
 	$(call log_info,Checking build dependencies...)
 	$(PYTHON) -c "import PyQt6" 2>/dev/null || ($(call log_error,PyQt6 not installed. Run 'make install' first); exit 1)
-	$(PYTHON) -c "import pyinstaller" 2>/dev/null || ($(call log_error,PyInstaller not installed. Run 'make install' first); exit 1)
+	$(PYTHON) -c "import PyInstaller" 2>/dev/null || ($(call log_error,PyInstaller not installed. Run 'make install' first); exit 1)
 endef
 
 # === Main Targets ===
@@ -93,13 +93,12 @@ version: ## Display current version information
 install: ## Install all dependencies
 	$(call check_python)
 	$(call log_info,Installing Python dependencies...)
-	@$(PIP) install --upgrade pip
-	@$(PIP) install -r requirements.txt
+	@$(PIP) install -r requirements.txt --break-system-packages
 	@if command -v dmgbuild >/dev/null 2>&1; then \
 		$(call log_success,dmgbuild already installed); \
 	else \
 		$(call log_info,Installing dmgbuild for DMG creation...); \
-		$(PIP) install dmgbuild; \
+		$(PIP) install dmgbuild --break-system-packages; \
 	fi
 	$(call log_success,Dependencies installed successfully)
 
@@ -192,7 +191,7 @@ update-homebrew: ## Update Homebrew Cask (requires GH_PAT environment variable)
 .PHONY: dev-install
 dev-install: install ## Install development dependencies
 	$(call log_info,Installing development dependencies...)
-	@$(PIP) install semantic-release
+	@$(PIP) install python-semantic-release --break-system-packages
 
 .PHONY: test-build
 test-build: clean validate ## Test build without creating DMG
@@ -209,7 +208,7 @@ test-build: clean validate ## Test build without creating DMG
 check-deps: ## Check if all dependencies are installed
 	$(call log_info,Checking dependencies...)
 	@$(PYTHON) -c "import PyQt6; print('✅ PyQt6 OK')" 2>/dev/null || echo "❌ PyQt6 missing"
-	@$(PYTHON) -c "import pyinstaller; print('✅ PyInstaller OK')" 2>/dev/null || echo "❌ PyInstaller missing"
+	@$(PYTHON) -c "import PyInstaller; print('✅ PyInstaller OK')" 2>/dev/null || echo "❌ PyInstaller missing"
 	@$(PYTHON) -c "import huggingface_hub; print('✅ Hugging Face Hub OK')" 2>/dev/null || echo "❌ Hugging Face Hub missing"
 	@command -v dmgbuild >/dev/null 2>&1 && echo "✅ dmgbuild OK" || echo "❌ dmgbuild missing"
 
