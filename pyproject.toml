@@ -13,3 +13,35 @@ dependencies = [
     "requests>=2.32.4",
     "tqdm>=4.67.1",
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+build_command = "make clean && make build && make dmg"
+upload_to_pypi = false
+upload_to_repository = false
+upload_to_release = true
+hvcs = "github"
+commit_message = "chore(release): v{version}"
+major_on_zero = false
+allow_zero_version = true
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf", "docs", "style", "refactor", "test", "chore", "ci", "build"]
+
+[tool.semantic_release.remote.token]
+env = "GH_TOKEN"
+
+[tool.semantic_release.changelog]
+template_dir = "templates"
+
+[tool.semantic_release.changelog.default_templates]
+changelog_file = "CHANGELOG.md"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*.dmg"]

@@ -1,261 +1,73 @@
-name: Build Application
+name: Semantic Release
 
 permissions:
   contents: write
+  id-token: write
 
 on:
   push:
-    tags:
-      - 'v*'  # Push events to matching v*, i.e. v1.0, v20.15.10
-  # Allow manual trigger
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version number (e.g., 1.0.0)'
-        required: true
-        default: '0.0.1'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-macos-arm64:
+  release:
     runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.10']
+    outputs:
+      released: ${{ steps.release.outputs.released }}
+      version: ${{ steps.release.outputs.version }}
+      tag: ${{ steps.release.outputs.tag }}
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install dmgbuild
-    
-    - name: Build application
-      run: python build.py
-    
-    - name: List build directory
-      run: ls -R dist/
-    
-    - name: Create DMG for macOS
-      run: |
-        cd dist
-        
-        for d in *.app; do
-          mv "$d" "HF Model Downloader.app"
-          echo 'from dmgbuild import *' > settings.py
-          echo 'format = "UDBZ"' >> settings.py
-          echo 'files = ["HF Model Downloader.app"]' >> settings.py
-          echo 'symlinks = { "Applications": "/Applications" }' >> settings.py
-          echo 'badge_icon = "HF Model Downloader.app/Contents/Resources/icon-windowed.icns"' >> settings.py
-          echo 'icon_locations = {' >> settings.py
-          echo '    "HF Model Downloader.app": (140, 120),' >> settings.py
-          echo '    "Applications": (500, 120)' >> settings.py
-          echo '}' >> settings.py
-          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-arm64.dmg"
-        done
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || github.token }}
       
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hf-model-downloader-macos-arm64
-        path: |
-          dist/*.dmg
-        if-no-files-found: error
-
-  build-macos-x86_64:
-    runs-on: macos-13
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.10']
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install dmgbuild
-    
-    - name: Build application
-      run: python build.py
-    
-    - name: List build directory
-      run: ls -R dist/
-    
-    - name: Create DMG for macOS
-      run: |
-        cd dist
-        
-        for d in *.app; do
-          mv "$d" "HF Model Downloader.app"
-          echo 'from dmgbuild import *' > settings.py
-          echo 'format = "UDBZ"' >> settings.py
-          echo 'files = ["HF Model Downloader.app"]' >> settings.py
-          echo 'symlinks = { "Applications": "/Applications" }' >> settings.py
-          echo 'badge_icon = "HF Model Downloader.app/Contents/Resources/icon-windowed.icns"' >> settings.py
-          echo 'icon_locations = {' >> settings.py
-          echo '    "HF Model Downloader.app": (140, 120),' >> settings.py
-          echo '    "Applications": (500, 120)' >> settings.py
-          echo '}' >> settings.py
-          dmgbuild -s settings.py "HF Model Downloader" "hf-model-downloader-x86_64.dmg"
-        done
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
       
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hf-model-downloader-macos-x86_64
-        path: |
-          dist/*.dmg
-        if-no-files-found: error
-
-  build-windows:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        python-version: ['3.10']
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Install NSIS
-      run: |
-        # Use Chocolatey to install NSIS (more reliable)
-        choco install nsis -y
-        # Add NSIS to PATH  
-        echo "C:\Program Files (x86)\NSIS" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-    
-    - name: Verify NSIS installation
-      run: |
-        # Verify NSIS is accessible
-        & "C:\Program Files (x86)\NSIS\makensis.exe" /VERSION
-        Write-Host "NSIS version check completed"
-    
-    - name: Build application
-      run: python build.py
-    
-    - name: List build directory
-      run: dir dist
-      
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hf-model-downloader-windows-x64
-        path: hf-model-downloader-installer.exe
-        if-no-files-found: error
-
-  create-release:
-    needs: [build-macos-arm64, build-macos-x86_64, build-windows]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Get version
-      id: get_version
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-        elif [[ $GITHUB_REF == refs/tags/v* ]]; then
-          echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-        fi
-    
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: dist
-        
-    - name: Flatten directory structure
-      run: |
-        cd dist
-        # Move all DMG files to root
-        find . -type f -name "*.dmg" -exec mv {} . \;
-        # Move installer EXE files to root
-        find . -type f -name "*installer*.exe" -exec mv {} . \;
-        # Clean up empty directories
-        find . -type d -empty -delete
-    
-    - name: List downloaded artifacts
-      run: ls -R dist/
-    
-    - name: Verify files for release
-      run: |
-        echo "Checking release files..."
-        for file in dist/*.dmg dist/*.exe; do
-          if [ -f "$file" ]; then
-            echo "✓ Found: $file ($(stat -c%s "$file" 2>/dev/null || stat -f%z "$file") bytes)"
-          else
-            echo "✗ Missing: $file"
-          fi
-        done
-    
-    - name: Create Release Notes
-      run: |
-        echo "# HF Model Downloader v${{ steps.get_version.outputs.version }}" > release_notes.md
-        echo "" >> release_notes.md
-        echo "## Downloads" >> release_notes.md
-        echo "- Windows (x64)" >> release_notes.md
-        echo "- macOS Intel (x86_64)" >> release_notes.md
-        echo "- macOS Apple Silicon (arm64)" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "## Changes" >> release_notes.md
-        echo "- Latest build from ${{ github.sha }}" >> release_notes.md
-    
-    - name: Wait before release (avoid file handle issues)
-      run: sleep 2
-    
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      with:
-        name: Version ${{ steps.get_version.outputs.version }}
-        tag_name: v${{ steps.get_version.outputs.version }}
-        body_path: release_notes.md
-        draft: false
-        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
-        files: |
-          dist/*.dmg
-          dist/*.exe
-        fail_on_unmatched_files: false
-        generate_release_notes: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  trigger-homebrew-update:
-    needs: [create-release]
-    runs-on: ubuntu-latest
-    if: ${{ !github.event.release.prerelease }}
-    
-    steps:
-      - name: Trigger Homebrew update
+      - name: Install dependencies
         run: |
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GH_PAT }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/dispatches \
-            -d '{"event_type":"trigger-homebrew-update","client_payload":{"version":"v${{ needs.create-release.outputs.version }}"}}'
+          python -m pip install --upgrade pip
+          pip install python-semantic-release dmgbuild
+          pip install -r requirements.txt
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Python Semantic Release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          semantic-release version --print
+          semantic-release publish
+  
+  update-homebrew:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN || github.token }}
+      
+      - name: Update Homebrew Cask
+        env:
+          GH_PAT: ${{ secrets.GH_TOKEN || github.token }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          echo "Updating Homebrew for version: $VERSION"
+          make update-homebrew
             

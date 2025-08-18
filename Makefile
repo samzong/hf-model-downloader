@@ -68,17 +68,36 @@ dmg:
 version:
 	@echo "当前版本: $(VERSION)"
 
+# Semantic Release 相关目标
+.PHONY: release-dry-run
+release-dry-run: ## 预览下一个发布版本（不执行实际操作）
+	@echo "$(BLUE)预览下一个发布版本...$(RESET)"
+	@semantic-release version --print
+
+.PHONY: release
+release: ## 执行 semantic release（需要在 main 分支上）
+	@echo "$(BLUE)执行 semantic release...$(RESET)"
+	@if [ "$$(git branch --show-current)" != "main" ]; then \
+		echo "$(RED)错误: 只能在 main 分支上执行发布$(RESET)"; \
+		exit 1; \
+	fi
+	@semantic-release version
+	@semantic-release publish
+
 # 帮助信息
 .PHONY: help
 help:
 	@echo "HF Model Downloader Makefile 帮助"
 	@echo "可用目标:"
-	@echo "  install      - 安装所需依赖"
-	@echo "  clean        - 清理构建目录"
-	@echo "  build        - 构建应用"
-	@echo "  dmg          - 创建 DMG 包"
-	@echo "  version      - 显示当前版本"
-	@echo "  help         - 显示此帮助信息"
+	@echo "  install         - 安装所需依赖"
+	@echo "  clean           - 清理构建目录"
+	@echo "  build           - 构建应用"
+	@echo "  dmg             - 创建 DMG 包"
+	@echo "  version         - 显示当前版本"
+	@echo "  release-dry-run - 预览下一个发布版本"
+	@echo "  release         - 执行 semantic release"
+	@echo "  update-homebrew - 更新 Homebrew Cask"
+	@echo "  help            - 显示此帮助信息"
 	@echo ""
 	@echo "当前架构: $(ARCH_NAME)"
 	@echo "当前版本: $(VERSION)" 
