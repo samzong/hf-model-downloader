@@ -1,31 +1,19 @@
 # Makefile for HF Model Downloader
+# Optimized for maintainability and reliability
 
-# 变量定义
+# === Configuration Variables ===
 PYTHON := python
 PIP := pip
 APP_NAME := hf-model-downloader
+
+# Build directories
 DIST_DIR := dist
 BUILD_DIR := build
 ASSETS_DIR := assets
+SCRIPTS_DIR := scripts
+
+# Platform detection
 ARCH := $(shell $(PYTHON) -c "import platform; print(platform.machine().lower())")
-
-# 版本信息
-VERSION = $(shell grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
-
-# Homebrew 相关变量
-HOMEBREW_TAP_REPO = homebrew-tap
-CASK_FILE = Casks/hf-model-downloader.rb
-BRANCH_NAME = update-hf-model-downloader-$(VERSION)
-CLEAN_VERSION = $(VERSION)
-
-# 颜色定义
-BLUE = \033[0;34m
-GREEN = \033[0;32m
-YELLOW = \033[0;33m
-RED = \033[0;31m
-RESET = \033[0m
-
-# 判断架构类型
 ifeq ($(ARCH),arm64)
 	ARCH_NAME := arm64
 else ifeq ($(ARCH),x86_64)
@@ -34,160 +22,213 @@ else
 	ARCH_NAME := $(ARCH)
 endif
 
-# 安装依赖
-.PHONY: install
-install:
-	$(PIP) install --upgrade pip
-	$(PIP) install -r requirements.txt
-	$(PIP) install dmgbuild
+# Version extraction (more robust)
+VERSION := $(shell $(PYTHON) -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])" 2>/dev/null || \
+           grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
 
-# 清理构建目录
-.PHONY: clean
-clean:
-	rm -rf $(BUILD_DIR) $(DIST_DIR) *.spec
+# Semantic release configuration
+CLEAN_VERSION := $(VERSION)
+BRANCH_NAME := update-hf-model-downloader-$(VERSION)
 
-# 构建应用
-.PHONY: build
-build:
-	$(PYTHON) build.py
+# Color definitions for output
+BLUE := \033[0;34m
+GREEN := \033[0;32m
+YELLOW := \033[0;33m
+RED := \033[0;31m
+RESET := \033[0m
 
-# 创建 DMG 包
-.PHONY: dmg
-dmg:
-	@echo "创建 DMG 包..."
-	@cd $(DIST_DIR) && \
-	for d in *.app; do \
-		mv "$$d" "HF Model Downloader.app"; \
-		cp ../dmg_settings.py settings.py; \
-		dmgbuild -s settings.py "HF Model Downloader" "$(APP_NAME)-macos-$(ARCH_NAME).dmg"; \
-	done
-	@echo "DMG 创建完成: $(DIST_DIR)/$(APP_NAME)-macos-$(ARCH_NAME).dmg"
+# === Utility Functions ===
+define log_info
+	@echo "$(BLUE)$(1)$(RESET)"
+endef
 
-# 显示版本信息
+define log_success
+	@echo "$(GREEN)✅ $(1)$(RESET)"
+endef
+
+define log_warning
+	@echo "$(YELLOW)⚠️  $(1)$(RESET)"
+endef
+
+define log_error
+	@echo "$(RED)❌ $(1)$(RESET)" >&2
+endef
+
+# === Validation Functions ===
+define check_python
+	@which $(PYTHON) > /dev/null || ($(call log_error,Python not found); exit 1)
+endef
+
+define check_version
+	@if [ -z "$(VERSION)" ]; then \
+		$(call log_error,Could not extract version from pyproject.toml); \
+		exit 1; \
+	fi
+endef
+
+define check_build_deps
+	@$(call log_info,Checking build dependencies...)
+	@$(PYTHON) -c "import PyQt6" 2>/dev/null || ($(call log_error,PyQt6 not installed. Run 'make install' first); exit 1)
+	@$(PYTHON) -c "import pyinstaller" 2>/dev/null || ($(call log_error,PyInstaller not installed. Run 'make install' first); exit 1)
+endef
+
+# === Main Targets ===
+
+.PHONY: help
+help: ## Show this help message
+	@echo "HF Model Downloader - Build System"
+	@echo "=================================="
+	@echo ""
+	@echo "Available targets:"
+	@awk 'BEGIN {FS = ":.*##"; printf "\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Current configuration:"
+	@echo "  Platform: $(ARCH_NAME)"
+	@echo "  Version:  $(VERSION)"
+	@echo "  Python:   $(shell $(PYTHON) --version 2>/dev/null || echo 'Not found')"
+
 .PHONY: version
-version:
-	@echo "当前版本: $(VERSION)"
+version: ## Display current version information
+	$(call check_version)
+	$(call log_info,Current version: $(VERSION))
 
-# Semantic Release 相关目标
+.PHONY: install
+install: ## Install all dependencies
+	$(call check_python)
+	$(call log_info,Installing Python dependencies...)
+	@$(PIP) install --upgrade pip
+	@$(PIP) install -r requirements.txt
+	@if command -v dmgbuild >/dev/null 2>&1; then \
+		$(call log_success,dmgbuild already installed); \
+	else \
+		$(call log_info,Installing dmgbuild for DMG creation...); \
+		$(PIP) install dmgbuild; \
+	fi
+	$(call log_success,Dependencies installed successfully)
+
+.PHONY: clean
+clean: ## Clean build artifacts
+	$(call log_info,Cleaning build directories...)
+	@rm -rf $(BUILD_DIR) $(DIST_DIR) *.spec
+	$(call log_success,Build artifacts cleaned)
+
+.PHONY: validate
+validate: ## Validate project configuration
+	$(call check_python)
+	$(call check_version)
+	$(call log_info,Validating project structure...)
+	@test -f main.py || ($(call log_error,main.py not found); exit 1)
+	@test -f build.py || ($(call log_error,build.py not found); exit 1)
+	@test -f pyproject.toml || ($(call log_error,pyproject.toml not found); exit 1)
+	@test -d src || ($(call log_error,src directory not found); exit 1)
+	$(call log_success,Project validation passed)
+
+.PHONY: build
+build: validate ## Build the application
+	$(call check_build_deps)
+	$(call log_info,Building $(APP_NAME) v$(VERSION) for $(ARCH_NAME)...)
+	@$(PYTHON) build.py
+	$(call log_success,Build completed: $(DIST_DIR))
+
+.PHONY: dmg
+dmg: build ## Create DMG package (macOS only)
+	@if [ "$(shell uname)" != "Darwin" ]; then \
+		$(call log_error,DMG creation is only supported on macOS); \
+		exit 1; \
+	fi
+	$(call log_info,Creating DMG package...)
+	@if [ ! -d "$(DIST_DIR)" ]; then \
+		$(call log_error,Dist directory not found. Run 'make build' first); \
+		exit 1; \
+	fi
+	@cd $(DIST_DIR) && \
+	for app_dir in *.app; do \
+		if [ -d "$$app_dir" ]; then \
+			$(call log_info,Processing $$app_dir...); \
+			mv "$$app_dir" "HF Model Downloader.app"; \
+			cp ../dmg_settings.py settings.py; \
+			dmgbuild -s settings.py "HF Model Downloader" "$(APP_NAME)-macos-$(ARCH_NAME).dmg"; \
+			break; \
+		fi; \
+	done
+	$(call log_success,DMG created: $(DIST_DIR)/$(APP_NAME)-macos-$(ARCH_NAME).dmg)
+
+.PHONY: package
+package: clean build dmg ## Complete build and packaging workflow
+	$(call log_success,Packaging completed successfully)
+
+# === Release Management ===
+
 .PHONY: release-dry-run
-release-dry-run: ## 预览下一个发布版本（不执行实际操作）
-	@echo "$(BLUE)预览下一个发布版本...$(RESET)"
+release-dry-run: ## Preview the next release version
+	$(call log_info,Previewing next release version...)
 	@semantic-release version --print
 
 .PHONY: release
-release: ## 执行 semantic release（需要在 main 分支上）
-	@echo "$(BLUE)执行 semantic release...$(RESET)"
+release: ## Execute semantic release (main branch only)
+	$(call log_info,Executing semantic release...)
 	@if [ "$$(git branch --show-current)" != "main" ]; then \
-		echo "$(RED)错误: 只能在 main 分支上执行发布$(RESET)"; \
+		$(call log_error,Release can only be executed on main branch); \
 		exit 1; \
 	fi
 	@semantic-release version
 	@semantic-release publish
 
-# 帮助信息
-.PHONY: help
-help:
-	@echo "HF Model Downloader Makefile 帮助"
-	@echo "可用目标:"
-	@echo "  install         - 安装所需依赖"
-	@echo "  clean           - 清理构建目录"
-	@echo "  build           - 构建应用"
-	@echo "  dmg             - 创建 DMG 包"
-	@echo "  version         - 显示当前版本"
-	@echo "  release-dry-run - 预览下一个发布版本"
-	@echo "  release         - 执行 semantic release"
-	@echo "  update-homebrew - 更新 Homebrew Cask"
-	@echo "  help            - 显示此帮助信息"
-	@echo ""
-	@echo "当前架构: $(ARCH_NAME)"
-	@echo "当前版本: $(VERSION)" 
+# === Homebrew Integration ===
+
+.PHONY: update-homebrew
+update-homebrew: ## Update Homebrew Cask (requires GH_PAT environment variable)
+	$(call check_version)
+	@if [ ! -x "$(SCRIPTS_DIR)/homebrew-update.sh" ]; then \
+		$(call log_error,Homebrew update script not found or not executable); \
+		exit 1; \
+	fi
+	$(call log_info,Starting Homebrew cask update process...)
+	@$(SCRIPTS_DIR)/homebrew-update.sh
+
+# === Development Targets ===
+
+.PHONY: dev-install
+dev-install: install ## Install development dependencies
+	$(call log_info,Installing development dependencies...)
+	@$(PIP) install semantic-release
+
+.PHONY: test-build
+test-build: clean validate ## Test build without creating DMG
+	$(call log_info,Testing build process...)
+	@$(PYTHON) build.py
+	@if [ -d "$(DIST_DIR)" ] && [ -n "$$(ls -A $(DIST_DIR) 2>/dev/null)" ]; then \
+		$(call log_success,Test build successful); \
+	else \
+		$(call log_error,Test build failed - no output in dist directory); \
+		exit 1; \
+	fi
+
+.PHONY: check-deps
+check-deps: ## Check if all dependencies are installed
+	$(call log_info,Checking dependencies...)
+	@$(PYTHON) -c "import PyQt6; print('✅ PyQt6 OK')" 2>/dev/null || echo "❌ PyQt6 missing"
+	@$(PYTHON) -c "import pyinstaller; print('✅ PyInstaller OK')" 2>/dev/null || echo "❌ PyInstaller missing"
+	@$(PYTHON) -c "import huggingface_hub; print('✅ Hugging Face Hub OK')" 2>/dev/null || echo "❌ Hugging Face Hub missing"
+	@command -v dmgbuild >/dev/null 2>&1 && echo "✅ dmgbuild OK" || echo "❌ dmgbuild missing"
+
+# === Quality Assurance ===
+
+.PHONY: verify-release
+verify-release: ## Verify release artifacts exist
+	$(call check_version)
+	$(call log_info,Verifying release artifacts for v$(VERSION)...)
+	@curl -I "https://github.com/samzong/hf-model-downloader/releases/download/v$(VERSION)/$(APP_NAME)-arm64.dmg" 2>/dev/null | head -1 | grep -q "200 OK" && \
+		$(call log_success,ARM64 DMG exists) || $(call log_warning,ARM64 DMG not found)
+	@curl -I "https://github.com/samzong/hf-model-downloader/releases/download/v$(VERSION)/$(APP_NAME)-x86_64.dmg" 2>/dev/null | head -1 | grep -q "200 OK" && \
+		$(call log_success,x86_64 DMG exists) || $(call log_warning,x86_64 DMG not found)
+
+# === Meta Targets ===
 
 .DEFAULT_GOAL := help
 
-# 更新 Homebrew Cask
-.PHONY: update-homebrew
-update-homebrew: ## 更新 Homebrew Cask (需要设置 GH_PAT 环境变量)
-	@echo "$(BLUE)开始 Homebrew cask 更新流程...$(RESET)"
-	@if [ -z "$(GH_PAT)" ]; then \
-		echo "$(RED)错误: 需要设置 GH_PAT 环境变量$(RESET)"; \
-		exit 1; \
-	fi
-	@echo "$(YELLOW)当前版本信息:$(RESET)"
-	@echo "    - VERSION: $(VERSION)"
-
-	@echo "$(BLUE)准备工作目录...$(RESET)"
-	@rm -rf tmp && mkdir -p tmp
-	
-	@echo "$(BLUE)下载 DMG 文件...$(RESET)"
-	@curl -L -o tmp/hf-model-downloader-arm64.dmg "https://github.com/samzong/hf-model-downloader/releases/download/v$(VERSION)/hf-model-downloader-arm64.dmg"
-	@curl -L -o tmp/hf-model-downloader-x86_64.dmg "https://github.com/samzong/hf-model-downloader/releases/download/v$(VERSION)/hf-model-downloader-x86_64.dmg"
-
-	@echo "$(BLUE)计算 SHA256 校验和...$(RESET)"
-	@ARM64_SHA256=$$(shasum -a 256 tmp/hf-model-downloader-arm64.dmg | cut -d ' ' -f 1) && echo "    - ARM64 SHA256: $$ARM64_SHA256"
-	@X86_64_SHA256=$$(shasum -a 256 tmp/hf-model-downloader-x86_64.dmg | cut -d ' ' -f 1) && echo "    - x86_64 SHA256: $$X86_64_SHA256"
-
-	@echo "$(BLUE)克隆 Homebrew tap 仓库...$(RESET)"
-	@cd tmp && git clone https://$(GH_PAT)@github.com/samzong/$(HOMEBREW_TAP_REPO).git
-	@cd tmp/$(HOMEBREW_TAP_REPO) && echo "    - 创建新分支: $(BRANCH_NAME)" && git checkout -b $(BRANCH_NAME)
-
-	@echo "$(BLUE)更新 cask 文件...$(RESET)"
-	@ARM64_SHA256=$$(shasum -a 256 tmp/hf-model-downloader-arm64.dmg | cut -d ' ' -f 1) && \
-	X86_64_SHA256=$$(shasum -a 256 tmp/hf-model-downloader-x86_64.dmg | cut -d ' ' -f 1) && \
-	echo "$(BLUE)再次确认SHA256: ARM64=$$ARM64_SHA256, x86_64=$$X86_64_SHA256$(RESET)" && \
-	cd tmp/$(HOMEBREW_TAP_REPO) && \
-	echo "$(BLUE)当前目录: $$(pwd)$(RESET)" && \
-	echo "$(BLUE)CASK_FILE路径: $(CASK_FILE)$(RESET)" && \
-	if [ -f $(CASK_FILE) ]; then \
-		echo "$(BLUE)发现现有cask文件，使用sed更新...$(RESET)"; \
-		echo "$(BLUE)cask文件内容 (更新前):$(RESET)"; \
-		cat $(CASK_FILE); \
-		echo "$(BLUE)更新版本号...$(RESET)"; \
-		sed -i '' "s/version \".*\"/version \"$(VERSION)\"/g" $(CASK_FILE); \
-		echo "$(BLUE)更新版本号后的cask文件内容:$(RESET)"; \
-		cat $(CASK_FILE); \
-		if grep -q "on_arm" $(CASK_FILE); then \
-			echo "$(BLUE)使用新格式 on_arm/on_intel 更新SHA256...$(RESET)"; \
-			awk -v arm_sha="$$ARM64_SHA256" -v intel_sha="$$X86_64_SHA256" ' \
-				/on_arm/,/end/ { if (/sha256/) gsub(/"[^"]*"/, "\"" arm_sha "\""); } \
-				/on_intel/,/end/ { if (/sha256/) gsub(/"[^"]*"/, "\"" intel_sha "\""); } \
-				{ print } \
-			' $(CASK_FILE) > $(CASK_FILE).tmp && mv $(CASK_FILE).tmp $(CASK_FILE); \
-			echo "$(BLUE)SHA256 已更新$(RESET)"; \
-			echo "$(BLUE)最终cask文件内容:$(RESET)"; \
-			cat $(CASK_FILE); \
-		else \
-			echo "$(RED)未找到 on_arm/on_intel 格式，无法更新 SHA256 值$(RESET)"; \
-			exit 1; \
-		fi; \
-	else \
-		echo "$(RED)未找到cask文件: $(CASK_FILE)$(RESET)"; \
-		exit 1; \
-	fi
-
-	@echo "$(BLUE)检查更改...$(RESET)"
-	@cd tmp/$(HOMEBREW_TAP_REPO) && \
-	if ! git diff --quiet $(CASK_FILE); then \
-		echo "    - 检测到更改，创建 pull request..."; \
-		git add $(CASK_FILE); \
-		git config user.name "GitHub Actions"; \
-		git config user.email "actions@github.com"; \
-		git commit -m "chore: update hf-model-downloader to v$(VERSION)"; \
-		git push -u origin $(BRANCH_NAME); \
-		echo "    - 准备创建PR数据..."; \
-		pr_data=$$(printf '{"title":"chore: update %s to v%s","body":"Auto-generated PR\\n\\n- Version: %s\\n- ARM64 SHA256: %s\\n- x86_64 SHA256: %s","head":"%s","base":"main"}' \
-			"hf-model-downloader" "$(VERSION)" "$(VERSION)" "$$ARM64_SHA256" "$$X86_64_SHA256" "$(BRANCH_NAME)"); \
-		echo "    - PR数据: $$pr_data"; \
-		curl -X POST \
-			-H "Authorization: token $(GH_PAT)" \
-			-H "Content-Type: application/json" \
-			https://api.github.com/repos/samzong/$(HOMEBREW_TAP_REPO)/pulls \
-			-d "$$pr_data"; \
-		echo "$(GREEN)✅ Pull request 创建成功$(RESET)"; \
-	else \
-		echo "$(RED)cask 文件中没有检测到更改$(RESET)"; \
-		exit 1; \
-	fi
-
-	@echo "$(BLUE)清理临时文件...$(RESET)"
-	@rm -rf tmp
-	@echo "$(GREEN)✅ Homebrew cask 更新流程完成$(RESET)"
+# Common dependency chains
+build: | validate
+dmg: | build  
+package: | clean
+release: | validate
