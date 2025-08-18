@@ -3,7 +3,7 @@
 
 # === Configuration Variables ===
 PYTHON := python
-PIP := pip
+PIP := pip3
 APP_NAME := hf-model-downloader
 
 # Build directories
@@ -39,19 +39,19 @@ RESET := \033[0m
 
 # === Utility Functions ===
 define log_info
-	@echo "$(BLUE)$(1)$(RESET)"
+	echo "$(BLUE)$(1)$(RESET)"
 endef
 
 define log_success
-	@echo "$(GREEN)✅ $(1)$(RESET)"
+	echo "$(GREEN)✅ $(1)$(RESET)"
 endef
 
 define log_warning
-	@echo "$(YELLOW)⚠️  $(1)$(RESET)"
+	echo "$(YELLOW)⚠️  $(1)$(RESET)"
 endef
 
 define log_error
-	@echo "$(RED)❌ $(1)$(RESET)" >&2
+	echo "$(RED)❌ $(1)$(RESET)" >&2
 endef
 
 # === Validation Functions ===
@@ -67,9 +67,9 @@ define check_version
 endef
 
 define check_build_deps
-	@$(call log_info,Checking build dependencies...)
-	@$(PYTHON) -c "import PyQt6" 2>/dev/null || ($(call log_error,PyQt6 not installed. Run 'make install' first); exit 1)
-	@$(PYTHON) -c "import pyinstaller" 2>/dev/null || ($(call log_error,PyInstaller not installed. Run 'make install' first); exit 1)
+	$(call log_info,Checking build dependencies...)
+	$(PYTHON) -c "import PyQt6" 2>/dev/null || ($(call log_error,PyQt6 not installed. Run 'make install' first); exit 1)
+	$(PYTHON) -c "import pyinstaller" 2>/dev/null || ($(call log_error,PyInstaller not installed. Run 'make install' first); exit 1)
 endef
 
 # === Main Targets ===
@@ -123,9 +123,9 @@ validate: ## Validate project configuration
 .PHONY: build
 build: validate ## Build the application
 	$(call check_build_deps)
-	$(call log_info,Building $(APP_NAME) v$(VERSION) for $(ARCH_NAME)...)
+	@$(call log_info,Building $(APP_NAME) v$(VERSION) for $(ARCH_NAME)...)
 	@$(PYTHON) build.py
-	$(call log_success,Build completed: $(DIST_DIR))
+	@$(call log_success,Build completed: $(DIST_DIR))
 
 .PHONY: dmg
 dmg: build ## Create DMG package (macOS only)
