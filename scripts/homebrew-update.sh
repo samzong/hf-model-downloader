@@ -96,9 +96,34 @@ prepare_workspace() {
 download_release_files() {
     log_info "Downloading DMG files..."
     local base_url="https://github.com/samzong/hf-model-downloader/releases/download/v${VERSION}"
+    local max_retries=10
+    local retry_delay=30
     
-    curl -L -o "${WORK_DIR}/${APP_NAME}-arm64.dmg" "${base_url}/${APP_NAME}-arm64.dmg"
-    curl -L -o "${WORK_DIR}/${APP_NAME}-x86_64.dmg" "${base_url}/${APP_NAME}-x86_64.dmg"
+    # Function to check if file exists and download it
+    download_with_retry() {
+        local url="$1"
+        local output="$2"
+        local retries=0
+        
+        while [ $retries -lt $max_retries ]; do
+            log_info "Attempting to download $(basename "$url") (attempt $((retries + 1))/$max_retries)..."
+            
+            if curl -f -L -o "$output" "$url"; then
+                log_success "Successfully downloaded $(basename "$url")"
+                return 0
+            else
+                log_warning "Download failed, retrying in ${retry_delay} seconds..."
+                sleep $retry_delay
+                retries=$((retries + 1))
+            fi
+        done
+        
+        log_error "Failed to download $(basename "$url") after $max_retries attempts"
+        return 1
+    }
+    
+    download_with_retry "${base_url}/${APP_NAME}-arm64.dmg" "${WORK_DIR}/${APP_NAME}-arm64.dmg"
+    download_with_retry "${base_url}/${APP_NAME}-x86_64.dmg" "${WORK_DIR}/${APP_NAME}-x86_64.dmg"
 }
 
 calculate_checksums() {
@@ -129,8 +154,10 @@ update_cask_file() {
     log_info "Current cask file content:"
     cat "$CASK_FILE"
     
-    # Update version
-    sed -i '' "s/version \".*\"/version \"${VERSION}\"/g" "$CASK_FILE"
+    # Update version (using more robust approach)
+    local temp_file="${CASK_FILE}.tmp"
+    sed "s/version \".*\"/version \"${VERSION}\"/g" "$CASK_FILE" > "$temp_file"
+    mv "$temp_file" "$CASK_FILE"
     
     # Update SHA256 values using a more readable approach
     if grep -q "on_arm" "$CASK_FILE"; then

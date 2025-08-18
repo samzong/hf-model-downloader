@@ -53,8 +53,9 @@ jobs:
           NEXT_VERSION=$(semantic-release version --print)
           echo "Next version would be: $NEXT_VERSION"
           
-          # Execute the actual release
+          # Execute the actual release (this includes version bump, build, and publish)
           semantic-release version
+          semantic-release publish
           
           # Set outputs for dependent jobs
           echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
