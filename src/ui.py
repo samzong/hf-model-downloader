@@ -14,6 +14,7 @@ import os
 # Repository information constants
 GITHUB_REPO_URL = "https://github.com/samzong/hf-model-downloader"
 AUTHOR_NAME = "samzong"
+AUTHOR_GITHUB_URL = "https://github.com/samzong"
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -163,20 +164,26 @@ class MainWindow(QMainWindow):
         
         # Footer Section
         footer_frame = QFrame()
-        footer_frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
         footer_layout = QHBoxLayout(footer_frame)
         
-        # GitHub repository link button
-        github_btn = QPushButton("🔗 View on GitHub")
+        # Add stretch to center content
+        footer_layout.addStretch()
+        
+        # GitHub repository link
+        github_btn = QPushButton("View on GitHub")
+        github_btn.setFlat(True)  # Make it look like a label but clickable
+        github_btn.setStyleSheet("QPushButton { font-size: 12px; color: #666; border: none; text-decoration: underline; }")
         github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(GITHUB_REPO_URL)))
         footer_layout.addWidget(github_btn)
         
-        # Author information
-        author_label = QLabel(f"Created by {AUTHOR_NAME}")
-        author_label.setStyleSheet("font-size: 12px; color: #666;")
-        footer_layout.addWidget(author_label)
+        # Author information with clickable link
+        author_btn = QPushButton(f"Created by {AUTHOR_NAME}")
+        author_btn.setFlat(True)  # Make it look like a label but clickable
+        author_btn.setStyleSheet("QPushButton { font-size: 12px; color: #666; border: none; text-decoration: underline; }")
+        author_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(AUTHOR_GITHUB_URL)))
+        footer_layout.addWidget(author_btn)
         
-        # Add stretch to push content to the left
+        # Add stretch to center content
         footer_layout.addStretch()
         
         layout.addWidget(footer_frame)
