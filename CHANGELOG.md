@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.3 (2025-08-19)
+
+### Refactoring
+
+- **build**: Replace Windows installer with zip package and update workflow upload script
+  ([`a7fdccd`](https://github.com/samzong/hf-model-downloader/commit/a7fdccdaa0cd75b3ab11e7dfd1b94f4662048e9e))
+
+
 ## v0.3.2 (2025-08-19)
 
 ### Chores
