@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.0 (2025-08-19)
+
+### Features
+
+- Improve workflow trigger mechanism
+  ([`3df93a1`](https://github.com/samzong/hf-model-downloader/commit/3df93a1bf720e5063d8d7bf2e1dda1fec36a6a5d))
+
+
 ## v0.2.0 (2025-08-19)
 
 ### Bug Fixes
