@@ -94,7 +94,7 @@ jobs:
     steps:
       - name: Trigger Multi-Platform Build
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           echo "Triggering multi-platform build for release ${{ needs.release.outputs.tag }}"
           gh workflow run build-multi-platform.yml \

@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload to Release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
           echo "Uploading ARM64 DMG to release..."
           
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload to Release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
           echo "Uploading x86_64 DMG to release..."
           
@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload to Release
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         shell: bash
         run: |
           echo "Uploading Windows executables to release..."
@@ -172,7 +172,7 @@ jobs:
 
       - name: Verify Release Assets
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
           echo "Checking release assets..."
           
