@@ -11,6 +11,10 @@ from .downloader import DownloadWorker
 import platform
 import os
 
+# Repository information constants
+GITHUB_REPO_URL = "https://github.com/samzong/hf-model-downloader"
+AUTHOR_NAME = "samzong"
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -156,6 +160,26 @@ class MainWindow(QMainWindow):
         self.log_text.setReadOnly(True)
         self.log_text.setMinimumHeight(200)
         layout.addWidget(self.log_text)
+        
+        # Footer Section
+        footer_frame = QFrame()
+        footer_frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
+        footer_layout = QHBoxLayout(footer_frame)
+        
+        # GitHub repository link button
+        github_btn = QPushButton("🔗 View on GitHub")
+        github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(GITHUB_REPO_URL)))
+        footer_layout.addWidget(github_btn)
+        
+        # Author information
+        author_label = QLabel(f"Created by {AUTHOR_NAME}")
+        author_label.setStyleSheet("font-size: 12px; color: #666;")
+        footer_layout.addWidget(author_label)
+        
+        # Add stretch to push content to the left
+        footer_layout.addStretch()
+        
+        layout.addWidget(footer_frame)
         
         self.download_worker = None
 
