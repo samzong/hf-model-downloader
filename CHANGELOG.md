@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.1 (2025-08-19)
+
+### Chores
+
+- **workflows**: Update token from GH_TOKEN to GH_PAT for release authentication
+  ([`809ed88`](https://github.com/samzong/hf-model-downloader/commit/809ed8883b1efca2941d8bdc5ef64d5e2168199d))
+
+
 ## v0.3.0 (2025-08-19)
 
 ### Features
