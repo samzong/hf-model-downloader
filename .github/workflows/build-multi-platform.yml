@@ -141,20 +141,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         shell: bash
         run: |
-          echo "Uploading Windows executables to release..."
+          echo "Uploading Windows package to release..."
           
           # Use release tag from event or workflow input
           RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
           
           echo "Using release tag: $RELEASE_TAG"
+          echo "Build artifacts:"
+          ls -la dist/ || true
+          ls -la *.zip *.exe 2>/dev/null || true
           
-          for file in dist/*.exe dist/*-windows-*; do
-            if [ -f "$file" ]; then
-              echo "Uploading: $file"
-              gh release upload "$RELEASE_TAG" "$file" --clobber
-            fi
-          done
-          echo "Windows files uploaded successfully"
+          # Upload the Windows package (zip file created by build process)
+          if [ -f "hf-model-downloader-windows-x86_64.zip" ]; then
+            echo "Uploading Windows package"
+            gh release upload "$RELEASE_TAG" "hf-model-downloader-windows-x86_64.zip" --clobber
+          else
+            echo "No Windows package found"
+            exit 1
+          fi
 
   trigger-homebrew-update:
     needs: [build-macos-arm64, build-macos-x86]

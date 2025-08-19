@@ -124,25 +124,25 @@ def build_app():
             
             print("\nTip: To fix icon issues, run `make fix-icons`")
         
-        # Create installer for Windows and clean up
+        # Create zip package for Windows
         if system == "windows":
-            print("\nCreating Windows installer...")
-            success = create_windows_installer(output_name, app_name)
+            print("\nCreating Windows package...")
+            success = create_windows_package(output_name, arch)
             if success:
-                # Remove original directory after creating installer
+                # Remove original directory after creating package
                 import shutil
                 dist_dir = os.path.join("dist", output_name)
                 if os.path.exists(dist_dir):
                     shutil.rmtree(dist_dir)
                     print(f"✓ Removed original directory: {dist_dir}")
-                    print("✓ Only installer package will be distributed")
+                    print("✓ Windows package created successfully")
         
     except subprocess.CalledProcessError as e:
         print(f"Error: Build failed: {e}")
         sys.exit(1)
 
-def create_windows_installer(app_dir_name, app_name):
-    """Create Windows installer using NSIS"""
+def create_windows_package(app_dir_name, arch):
+    """Create Windows zip package"""
     try:
         print(f"Checking for app directory: dist/{app_dir_name}")
         app_dir_path = os.path.join("dist", app_dir_name)
@@ -154,66 +154,29 @@ def create_windows_installer(app_dir_name, app_name):
         print(f"✓ App directory found: {app_dir_path}")
         print(f"Contents: {os.listdir(app_dir_path)}")
         
-        # Check if NSIS is available
-        print("Checking NSIS availability...")
-        result = subprocess.run(["makensis", "/VERSION"], check=True, capture_output=True, text=True)
-        print(f"NSIS version: {result.stdout.strip()}")
+        # Create zip package
+        import zipfile
+        zip_name = f"hf-model-downloader-windows-{arch}.zip"
         
-        # Update NSIS script with actual directory name
-        print("Updating NSIS script...")
-        with open("installer.nsi", "r", encoding="utf-8") as f:
-            nsi_content = f.read()
+        print(f"Creating zip package: {zip_name}")
+        with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(app_dir_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # Create archive path relative to the app directory
+                    archive_path = os.path.relpath(file_path, "dist")
+                    zipf.write(file_path, archive_path)
         
-        # Replace the placeholder with actual directory name and executable name
-        nsi_content = nsi_content.replace(
-            'file /r "dist\\${APPNAME}-windows-*\\*"',
-            f'file /r "dist\\{app_dir_name}\\*"'
-        )
-        # Update executable references to use the new name
-        nsi_content = nsi_content.replace(
-            'hf-model-downloader.exe',
-            f'{app_dir_name}.exe'
-        )
-        
-        # Write temporary NSI file
-        temp_nsi_path = "installer_temp.nsi"
-        with open(temp_nsi_path, "w", encoding="utf-8") as f:
-            f.write(nsi_content)
-        
-        print(f"✓ Temporary NSI script created: {temp_nsi_path}")
-        
-        # Build installer
-        print("Building installer with NSIS...")
-        result = subprocess.run(["makensis", temp_nsi_path], capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            print(f"✗ NSIS build failed:")
-            print(f"STDOUT: {result.stdout}")
-            print(f"STDERR: {result.stderr}")
-            return False
-        
-        print(f"NSIS output: {result.stdout}")
-        
-        # Clean up
-        os.remove(temp_nsi_path)
-        
-        # Verify installer was created
-        installer_path = "hf-model-downloader-installer.exe"
-        if os.path.exists(installer_path):
-            installer_size = os.path.getsize(installer_path) / (1024 * 1024)
-            print(f"✓ Windows installer created: {installer_path} ({installer_size:.2f} MB)")
+        if os.path.exists(zip_name):
+            zip_size = os.path.getsize(zip_name) / (1024 * 1024)
+            print(f"✓ Windows package created: {zip_name} ({zip_size:.2f} MB)")
             return True
         else:
-            print(f"✗ Installer file not found: {installer_path}")
+            print(f"✗ Package file not found: {zip_name}")
             return False
         
-    except subprocess.CalledProcessError as e:
-        print(f"✗ NSIS command failed: {e}")
-        if e.stderr:
-            print(f"Error output: {e.stderr}")
-        return False
     except Exception as e:
-        print(f"⚠ Failed to create installer: {e}")
+        print(f"⚠ Failed to create package: {e}")
         import traceback
         traceback.print_exc()
         return False
