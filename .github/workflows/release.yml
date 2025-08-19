@@ -86,3 +86,19 @@ jobs:
             echo "tag=" >> $GITHUB_OUTPUT
             echo "Skipping publish step - no new release needed"
           fi
+
+  trigger-build:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Multi-Platform Build
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          echo "Triggering multi-platform build for release ${{ needs.release.outputs.tag }}"
+          gh workflow run build-multi-platform.yml \
+            --repo samzong/hf-model-downloader \
+            --field release_tag="${{ needs.release.outputs.tag }}" \
+            --field version="${{ needs.release.outputs.version }}"
+          echo "Multi-platform build workflow triggered successfully"

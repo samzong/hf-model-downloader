@@ -4,6 +4,15 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g., v0.2.0)'
+        required: true
+        type: string
+      version:
+        description: 'Version without v prefix (e.g., 0.2.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -46,7 +55,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           echo "Uploading ARM64 DMG to release..."
-          gh release upload ${{ github.event.release.tag_name }} \
+          
+          # Use release tag from event or workflow input
+          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
+          
+          echo "Using release tag: $RELEASE_TAG"
+          
+          gh release upload "$RELEASE_TAG" \
             dist/hf-model-downloader-arm64.dmg \
             --clobber
           echo "ARM64 DMG uploaded successfully"
@@ -83,7 +98,13 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           echo "Uploading x86_64 DMG to release..."
-          gh release upload ${{ github.event.release.tag_name }} \
+          
+          # Use release tag from event or workflow input
+          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
+          
+          echo "Using release tag: $RELEASE_TAG"
+          
+          gh release upload "$RELEASE_TAG" \
             dist/hf-model-downloader-x86_64.dmg \
             --clobber
           echo "x86_64 DMG uploaded successfully"
@@ -121,10 +142,16 @@ jobs:
         shell: bash
         run: |
           echo "Uploading Windows executables to release..."
+          
+          # Use release tag from event or workflow input
+          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
+          
+          echo "Using release tag: $RELEASE_TAG"
+          
           for file in dist/*.exe dist/*-windows-*; do
             if [ -f "$file" ]; then
               echo "Uploading: $file"
-              gh release upload ${{ github.event.release.tag_name }} "$file" --clobber
+              gh release upload "$RELEASE_TAG" "$file" --clobber
             fi
           done
           echo "Windows files uploaded successfully"
@@ -148,9 +175,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           echo "Checking release assets..."
-          gh release view ${{ github.event.release.tag_name }} --json assets --jq '.assets[].name'
+          
+          # Use release tag from event or workflow input
+          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
+          
+          echo "Using release tag: $RELEASE_TAG"
+          
+          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'
 
-          assets=$(gh release view ${{ github.event.release.tag_name }} --json assets --jq '.assets[].name')
+          assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
           if ! echo "$assets" | grep -q "hf-model-downloader-arm64.dmg"; then
             echo "Error: ARM64 DMG not found in release"
             exit 1
@@ -164,14 +197,21 @@ jobs:
       - name: Update Homebrew Cask
         env:
           GH_PAT: ${{ secrets.GH_TOKEN || github.token }}
-          VERSION: ${{ github.event.release.tag_name }}
         run: |
           echo "Starting Homebrew update process"
-
-          VERSION=${VERSION#v}
+          
+          # Use version from workflow input or extract from release tag
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+            RELEASE_TAG="${{ inputs.release_tag }}"
+          else
+            RELEASE_TAG="${{ github.event.release.tag_name }}"
+            VERSION=${RELEASE_TAG#v}
+          fi
+          
           export VERSION
 
           echo "Version: $VERSION"
-          echo "Tag: ${{ github.event.release.tag_name }}"
+          echo "Tag: $RELEASE_TAG"
 
           make update-homebrew
