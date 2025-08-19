@@ -98,6 +98,17 @@ jobs:
         with:
           token: ${{ secrets.GH_TOKEN || github.token }}
       
+      - name: Debug environment
+        run: |
+          echo "Debug: Current directory: $(pwd)"
+          echo "Debug: Files in directory:"
+          ls -la
+          echo "Debug: Git remote info:"
+          git remote -v 2>/dev/null || echo "Not a git repository"
+          echo "Debug: Python version: $(python --version 2>&1 || echo 'Python not found')"
+          echo "Debug: Available make targets:"
+          make help 2>/dev/null || echo "Make help not available"
+      
       - name: Update Homebrew Cask
         env:
           GH_PAT: ${{ secrets.GH_TOKEN || github.token }}
@@ -109,6 +120,12 @@ jobs:
           echo "Tag: $TAG"
           echo "Released: ${{ needs.release.outputs.released }}"
           
+          # Enhanced debug information
+          echo "Debug: GH_PAT length: ${#GH_PAT}"
+          echo "Debug: Current user: $(whoami 2>/dev/null || echo 'unknown')"
+          echo "Debug: Git config:"
+          git config --list | grep user || echo "No git user config found"
+          
           # Verify we have the required information
           if [ -z "$VERSION" ] || [ -z "$TAG" ]; then
             echo "Missing version or tag information, skipping Homebrew update"
@@ -116,6 +133,7 @@ jobs:
           fi
           
           # Verify the release exists on GitHub
+          echo "Debug: Checking if release exists..."
           if ! curl -s -f "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" > /dev/null; then
             echo "Release $TAG not found on GitHub, skipping Homebrew update"
             exit 1

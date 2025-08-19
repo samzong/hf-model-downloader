@@ -71,20 +71,24 @@ validate_environment() {
 }
 
 get_version() {
-    if [[ -f "pyproject.toml" ]]; then
+    # Priority: use environment variable VERSION if available (for CI/CD)
+    if [[ -n "${VERSION:-}" ]]; then
+        log_info "Using version from environment: $VERSION"
+    elif [[ -f "pyproject.toml" ]]; then
         VERSION=$(grep '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+        log_info "Version extracted from pyproject.toml: $VERSION"
     else
-        log_error "pyproject.toml not found"
+        log_error "Version not found in environment or pyproject.toml"
         exit 1
     fi
     
     if [[ -z "$VERSION" ]]; then
-        log_error "Could not extract version from pyproject.toml"
+        log_error "Could not determine version"
         exit 1
     fi
     
     BRANCH_NAME="update-hf-model-downloader-${VERSION}"
-    log_info "Version: $VERSION"
+    log_info "Final version: $VERSION"
 }
 
 prepare_workspace() {
@@ -140,6 +144,10 @@ clone_tap_repository() {
     cd "${WORK_DIR}"
     git clone "https://${GH_PAT}@github.com/samzong/${HOMEBREW_TAP_REPO}.git"
     cd "${HOMEBREW_TAP_REPO}"
+    
+    # Ensure remote URL uses token for subsequent push operations
+    git remote set-url origin "https://${GH_PAT}@github.com/samzong/${HOMEBREW_TAP_REPO}.git"
+    
     git checkout -b "${BRANCH_NAME}"
 }
 
