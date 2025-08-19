@@ -173,11 +173,11 @@ dmg: build ## Create DMG package (macOS only)
 			$(call log_info,Processing $$app_dir...); \
 			mv "$$app_dir" "HF Model Downloader.app"; \
 			cp ../dmg_settings.py settings.py; \
-			dmgbuild -s settings.py "HF Model Downloader" "$(APP_NAME)-macos-$(ARCH_NAME).dmg"; \
+			dmgbuild -s settings.py "HF Model Downloader" "$(APP_NAME)-$(ARCH_NAME).dmg"; \
 			break; \
 		fi; \
 	done
-	$(call log_success,DMG created: $(DIST_DIR)/$(APP_NAME)-macos-$(ARCH_NAME).dmg)
+	$(call log_success,DMG created: $(DIST_DIR)/$(APP_NAME)-$(ARCH_NAME).dmg)
 
 .PHONY: package
 package: clean build dmg ## Complete build and packaging workflow
@@ -211,7 +211,7 @@ update-homebrew: ## Update Homebrew Cask (requires GH_PAT environment variable)
 		exit 1; \
 	fi
 	$(call log_info,Starting Homebrew cask update process...)
-	@$(SCRIPTS_DIR)/homebrew-update.sh
+	@export VERSION="$(VERSION)"; $(SCRIPTS_DIR)/homebrew-update.sh
 
 .PHONY: verify-release
 verify-release: ## Verify release artifacts exist
