@@ -72,12 +72,10 @@ define check_build_deps
 	$(PYTHON) -c "import PyInstaller" 2>/dev/null || ($(call log_error,PyInstaller not installed. Run 'make install' first); exit 1)
 endef
 
-# === Main Targets ===
-
+##@ Basic
 .PHONY: help
 help: ## Show this help message
-	@echo "Available targets:"
-	@awk 'BEGIN {FS = ":.*##";} /^[a-zA-Z_-]+:.*##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "Current configuration:"
 	@echo "  Platform: $(ARCH_NAME)"
@@ -89,6 +87,7 @@ version: ## Display current version information
 	$(call check_version)
 	$(call log_info,Current version: $(VERSION))
 
+##@ Development
 .PHONY: install
 install: ## Install all dependencies
 	$(call check_python)
@@ -108,6 +107,36 @@ clean: ## Clean build artifacts
 	@rm -rf $(BUILD_DIR) $(DIST_DIR) *.spec
 	$(call log_success,Build artifacts cleaned)
 
+.PHONY: dev-install
+dev: ## Run the application in development mod
+	$(call check_python)
+	$(call log_info,Starting application in development mode...)
+	@$(PYTHON) main.py
+
+dev-install: install ## Install development dependencie
+	$(call log_info,Installing development dependencies...)
+	@$(PIP) install python-semantic-release --break-system-packages
+
+.PHONY: dev
+.PHONY: test-build
+test-build: clean validate ## Test the build proces
+	$(call log_info,Testing build process...)
+	@$(PYTHON) build.py
+	@if [ -d "$(DIST_DIR)" ] && [ -n "$$(ls -A $(DIST_DIR) 2>/dev/null)" ]; then \
+		$(call log_success,Test build successful); \
+	else \
+		$(call log_error,Test build failed - no output in dist directory); \
+		exit 1; \
+	fi
+
+.PHONY: check-deps
+check-deps: ## Check dependencie
+	$(call log_info,Checking dependencies...)
+	@$(PYTHON) -c "import PyQt6; print('✅ PyQt6 OK')" 2>/dev/null || echo "❌ PyQt6 missing"
+	@$(PYTHON) -c "import PyInstaller; print('✅ PyInstaller OK')" 2>/dev/null || echo "❌ PyInstaller missing"
+	@$(PYTHON) -c "import huggingface_hub; print('✅ Hugging Face Hub OK')" 2>/dev/null || echo "❌ Hugging Face Hub missing"
+	@command -v dmgbuild >/dev/null 2>&1 && echo "✅ dmgbuild OK" || echo "❌ dmgbuild missing"
+
 .PHONY: validate
 validate: ## Validate project configuration
 	$(call check_python)
@@ -119,6 +148,7 @@ validate: ## Validate project configuration
 	@test -d src || ($(call log_error,src directory not found); exit 1)
 	$(call log_success,Project validation passed)
 
+##@ Build
 .PHONY: build
 build: validate ## Build the application
 	$(call check_build_deps)
@@ -153,8 +183,7 @@ dmg: build ## Create DMG package (macOS only)
 package: clean build dmg ## Complete build and packaging workflow
 	$(call log_success,Packaging completed successfully)
 
-# === Release Management ===
-
+##@ Release
 .PHONY: release-dry-run
 release-dry-run: ## Preview the next release version
 	$(call log_info,Previewing next release version...)
@@ -170,8 +199,6 @@ release: ## Execute semantic release (main branch only)
 	@semantic-release version
 	@semantic-release publish
 
-# === Homebrew Integration ===
-
 .PHONY: update-homebrew
 update-homebrew: ## Update Homebrew Cask (requires GH_PAT environment variable)
 	$(call check_version)
@@ -186,34 +213,6 @@ update-homebrew: ## Update Homebrew Cask (requires GH_PAT environment variable)
 	$(call log_info,Starting Homebrew cask update process...)
 	@$(SCRIPTS_DIR)/homebrew-update.sh
 
-# === Development Targets ===
-
-.PHONY: dev-install
-dev-install: install ## Install development dependencies
-	$(call log_info,Installing development dependencies...)
-	@$(PIP) install python-semantic-release --break-system-packages
-
-.PHONY: test-build
-test-build: clean validate ## Test build without creating DMG
-	$(call log_info,Testing build process...)
-	@$(PYTHON) build.py
-	@if [ -d "$(DIST_DIR)" ] && [ -n "$$(ls -A $(DIST_DIR) 2>/dev/null)" ]; then \
-		$(call log_success,Test build successful); \
-	else \
-		$(call log_error,Test build failed - no output in dist directory); \
-		exit 1; \
-	fi
-
-.PHONY: check-deps
-check-deps: ## Check if all dependencies are installed
-	$(call log_info,Checking dependencies...)
-	@$(PYTHON) -c "import PyQt6; print('✅ PyQt6 OK')" 2>/dev/null || echo "❌ PyQt6 missing"
-	@$(PYTHON) -c "import PyInstaller; print('✅ PyInstaller OK')" 2>/dev/null || echo "❌ PyInstaller missing"
-	@$(PYTHON) -c "import huggingface_hub; print('✅ Hugging Face Hub OK')" 2>/dev/null || echo "❌ Hugging Face Hub missing"
-	@command -v dmgbuild >/dev/null 2>&1 && echo "✅ dmgbuild OK" || echo "❌ dmgbuild missing"
-
-# === Quality Assurance ===
-
 .PHONY: verify-release
 verify-release: ## Verify release artifacts exist
 	$(call check_version)
@@ -222,8 +221,6 @@ verify-release: ## Verify release artifacts exist
 		$(call log_success,ARM64 DMG exists) || $(call log_warning,ARM64 DMG not found)
 	@curl -I "https://github.com/samzong/hf-model-downloader/releases/download/v$(VERSION)/$(APP_NAME)-x86_64.dmg" 2>/dev/null | head -1 | grep -q "200 OK" && \
 		$(call log_success,x86_64 DMG exists) || $(call log_warning,x86_64 DMG not found)
-
-# === Meta Targets ===
 
 .DEFAULT_GOAL := help
 
