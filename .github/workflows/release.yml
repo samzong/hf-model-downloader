@@ -41,33 +41,50 @@ jobs:
       
       - name: Configure Git
         run: |
+          echo "Configuring Git for automated commits"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo "Git configuration completed"
       
       - name: Python Semantic Release
         id: release
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
+          echo "Starting semantic release process"
+          
+          # Store the current commit SHA before release
+          BEFORE_SHA=$(git rev-parse HEAD)
+          echo "Commit SHA before release: $BEFORE_SHA"
+          
           # Check what version would be released
+          echo "Checking next version..."
           NEXT_VERSION=$(semantic-release version --print)
           echo "Next version would be: $NEXT_VERSION"
           
           # Execute the actual release (this includes version bump, build, and publish)
+          echo "Executing semantic-release version..."
           semantic-release version
-          semantic-release publish
+          RELEASE_EXIT_CODE=$?
+          echo "semantic-release version exit code: $RELEASE_EXIT_CODE"
           
-          # Set outputs for dependent jobs
-          echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          # Check if version step created new commits (indicating a release was made)
+          AFTER_SHA=$(git rev-parse HEAD)
+          echo "Commit SHA after release: $AFTER_SHA"
           
-          # Check if release was actually created by checking if tag exists
-          if git tag --list "v$NEXT_VERSION" | grep -q "v$NEXT_VERSION"; then
+          if [ "$BEFORE_SHA" != "$AFTER_SHA" ] && [ $RELEASE_EXIT_CODE -eq 0 ]; then
+            echo "New version was created, proceeding with publish"
+            semantic-release publish
             echo "released=true" >> $GITHUB_OUTPUT
+            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
             echo "tag=v$NEXT_VERSION" >> $GITHUB_OUTPUT
-            echo "✅ Release v$NEXT_VERSION created successfully"
+            echo "Release v$NEXT_VERSION created successfully"
           else
+            echo "No new release was created (version $NEXT_VERSION already exists)"
             echo "released=false" >> $GITHUB_OUTPUT
-            echo "❌ No release was created"
+            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+            echo "tag=" >> $GITHUB_OUTPUT
+            echo "Skipping publish step - no new release needed"
           fi
   
   update-homebrew:
@@ -85,7 +102,25 @@ jobs:
         env:
           GH_PAT: ${{ secrets.GH_TOKEN || github.token }}
           VERSION: ${{ needs.release.outputs.version }}
+          TAG: ${{ needs.release.outputs.tag }}
         run: |
-          echo "Updating Homebrew for version: $VERSION"
+          echo "Starting Homebrew update process"
+          echo "Version: $VERSION"
+          echo "Tag: $TAG"
+          echo "Released: ${{ needs.release.outputs.released }}"
+          
+          # Verify we have the required information
+          if [ -z "$VERSION" ] || [ -z "$TAG" ]; then
+            echo "Missing version or tag information, skipping Homebrew update"
+            exit 1
+          fi
+          
+          # Verify the release exists on GitHub
+          if ! curl -s -f "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" > /dev/null; then
+            echo "Release $TAG not found on GitHub, skipping Homebrew update"
+            exit 1
+          fi
+          
+          echo "Release verified, updating Homebrew cask"
           make update-homebrew
             
