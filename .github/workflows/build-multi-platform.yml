@@ -1,0 +1,177 @@
+name: Build Multi-Platform
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-macos-arm64:
+    runs-on: macos-latest # ARM64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-semantic-release dmgbuild
+          pip install -r requirements.txt
+
+      - name: Build DMG (ARM64)
+        run: |
+          echo "Building for ARM64 architecture..."
+          make clean build dmg
+          echo "Build completed, checking output:"
+          ls -la dist/
+
+      - name: Upload to Release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          echo "Uploading ARM64 DMG to release..."
+          gh release upload ${{ github.event.release.tag_name }} \
+            dist/hf-model-downloader-arm64.dmg \
+            --clobber
+          echo "ARM64 DMG uploaded successfully"
+
+  build-macos-x86:
+    runs-on: macos-13 # Intel Mac
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install python-semantic-release dmgbuild
+          pip install -r requirements.txt
+
+      - name: Build DMG (x86_64)
+        run: |
+          echo "Building for x86_64 architecture..."
+          make clean build dmg
+          echo "Build completed, checking output:"
+          ls -la dist/
+
+      - name: Upload to Release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          echo "Uploading x86_64 DMG to release..."
+          gh release upload ${{ github.event.release.tag_name }} \
+            dist/hf-model-downloader-x86_64.dmg \
+            --clobber
+          echo "x86_64 DMG uploaded successfully"
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build Windows Executable
+        run: |
+          echo "Building for Windows..."
+          python build.py
+          echo "Build completed, checking output:"
+          dir dist\
+
+      - name: Upload to Release
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        shell: bash
+        run: |
+          echo "Uploading Windows executables to release..."
+          for file in dist/*.exe dist/*-windows-*; do
+            if [ -f "$file" ]; then
+              echo "Uploading: $file"
+              gh release upload ${{ github.event.release.tag_name }} "$file" --clobber
+            fi
+          done
+          echo "Windows files uploaded successfully"
+
+  trigger-homebrew-update:
+    needs: [build-macos-arm64, build-macos-x86]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN || github.token }}
+
+      - name: Wait for file availability
+        run: |
+          echo "Waiting for DMG files to be available..."
+          sleep 30
+
+      - name: Verify Release Assets
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
+        run: |
+          echo "Checking release assets..."
+          gh release view ${{ github.event.release.tag_name }} --json assets --jq '.assets[].name'
+
+          assets=$(gh release view ${{ github.event.release.tag_name }} --json assets --jq '.assets[].name')
+          if ! echo "$assets" | grep -q "hf-model-downloader-arm64.dmg"; then
+            echo "Error: ARM64 DMG not found in release"
+            exit 1
+          fi
+          if ! echo "$assets" | grep -q "hf-model-downloader-x86_64.dmg"; then
+            echo "Error: x86_64 DMG not found in release"
+            exit 1
+          fi
+          echo "All required DMG files are present"
+
+      - name: Update Homebrew Cask
+        env:
+          GH_PAT: ${{ secrets.GH_TOKEN || github.token }}
+          VERSION: ${{ github.event.release.tag_name }}
+        run: |
+          echo "Starting Homebrew update process"
+
+          VERSION=${VERSION#v}
+          export VERSION
+
+          echo "Version: $VERSION"
+          echo "Tag: ${{ github.event.release.tag_name }}"
+
+          make update-homebrew

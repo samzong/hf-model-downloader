@@ -16,10 +16,10 @@ dependencies = [
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-build_command = "make clean && make build && make dmg"
+build_command = "echo 'Build handled by separate multi-platform workflow'"
 upload_to_pypi = false
 upload_to_repository = false
-upload_to_release = true
+upload_to_release = false
 hvcs = "github"
 commit_message = "chore(release): v{version}"
 major_on_zero = false
