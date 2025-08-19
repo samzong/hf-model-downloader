@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.1.1 (2025-08-19)
+
+### Chores
+
+- **ci**: Add debug info to release workflow and improve homebrew update script handling
+  ([`8d35874`](https://github.com/samzong/hf-model-downloader/commit/8d35874a986c9a3b823a0fbdd8dd7231f614fea8))
+
+
 ## v0.1.0 (2025-08-18)
 
 ### Bug Fixes
