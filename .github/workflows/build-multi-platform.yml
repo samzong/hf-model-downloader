@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN || github.token }}
+          token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -52,7 +52,7 @@ jobs:
 
       - name: Upload to Release
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         run: |
           echo "Uploading ARM64 DMG to release..."
           
@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN || github.token }}
+          token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload to Release
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         run: |
           echo "Uploading x86_64 DMG to release..."
           
@@ -116,7 +116,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN || github.token }}
+          token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -138,7 +138,7 @@ jobs:
 
       - name: Upload to Release
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         shell: bash
         run: |
           echo "Uploading Windows executables to release..."
@@ -163,7 +163,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_TOKEN || github.token }}
+          token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
 
       - name: Wait for file availability
         run: |
@@ -172,7 +172,7 @@ jobs:
 
       - name: Verify Release Assets
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         run: |
           echo "Checking release assets..."
           
@@ -196,9 +196,18 @@ jobs:
 
       - name: Update Homebrew Cask
         env:
-          GH_PAT: ${{ secrets.GH_TOKEN || github.token }}
+          GH_PAT: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         run: |
           echo "Starting Homebrew update process"
+          
+          # Debug: Check if GH_PAT is available
+          if [ -z "$GH_PAT" ]; then
+            echo "❌ Error: GH_PAT environment variable is empty"
+            echo "Available secrets priority: GH_PAT -> GH_TOKEN -> github.token"
+            exit 1
+          else
+            echo "✅ GH_PAT environment variable is set"
+          fi
           
           # Use version from workflow input or extract from release tag
           if [ -n "${{ inputs.version }}" ]; then

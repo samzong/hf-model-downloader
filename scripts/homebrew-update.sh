@@ -210,7 +210,14 @@ commit_and_push_changes() {
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         git commit -m "chore: update hf-model-downloader to v${VERSION}"
-        git push -u origin "$BRANCH_NAME"
+        
+        log_info "Pushing branch $BRANCH_NAME to remote repository..."
+        if ! git push -u origin "$BRANCH_NAME"; then
+            log_error "Failed to push branch to remote repository"
+            log_error "This usually indicates insufficient token permissions"
+            log_error "Ensure GH_PAT has write access to samzong/homebrew-tap repository"
+            exit 1
+        fi
         
         log_success "Changes committed and pushed"
     else
