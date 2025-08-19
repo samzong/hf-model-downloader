@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.2.0 (2025-08-19)
+
+### Bug Fixes
+
+- **makefile**: Correct dmg filename and export VERSION for homebrew update script
+  ([`f0e94f7`](https://github.com/samzong/hf-model-downloader/commit/f0e94f77bfe0e149261e6c0b598934b9704bcc59))
+
+### Features
+
+- **ci**: Add multi-platform build and release workflows with macOS and Windows support
+  ([`e9f560f`](https://github.com/samzong/hf-model-downloader/commit/e9f560f3516c3525a70d39c525458d1d19d1ec6d))
+
+
 ## v0.1.1 (2025-08-19)
 
 ### Chores
