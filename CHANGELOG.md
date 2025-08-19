@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.3.2 (2025-08-19)
+
+### Chores
+
+- **ci**: Prioritize GH_PAT secret and add debug checks in workflows and scripts
+  ([`714294a`](https://github.com/samzong/hf-model-downloader/commit/714294a8821f60d9c6c20e96b7a469da23a25521))
+
+
 ## v0.3.1 (2025-08-19)
 
 ### Chores
