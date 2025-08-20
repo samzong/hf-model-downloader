@@ -4,10 +4,10 @@ User interface for the Model Downloader
 
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout,
                            QHBoxLayout, QLineEdit, QPushButton, QLabel,
-                           QFileDialog, QMessageBox, QTextEdit, QFrame, QComboBox)
-from PyQt6.QtCore import Qt, QUrl
+                           QFileDialog, QMessageBox, QTextEdit, QFrame, QComboBox, QButtonGroup)
+from PyQt6.QtCore import Qt, QUrl, QSize
 from PyQt6.QtGui import QDesktopServices, QIcon
-from .downloader import DownloadWorker
+from .unified_downloader import UnifiedDownloadWorker
 import platform
 import os
 
@@ -19,7 +19,7 @@ AUTHOR_GITHUB_URL = "https://github.com/samzong"
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Hugging Face Model Downloader")
+        self.setWindowTitle("Hugging Face & ModelScope Model Downloader")
         
         # Set window icon based on platform
         system = platform.system().lower()
@@ -41,6 +41,75 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(main_widget)
         layout = QVBoxLayout(main_widget)
         
+        # Platform Selection Icons at the top
+        icon_layout = QHBoxLayout()
+        icon_layout.setContentsMargins(10, 10, 10, 0)
+        
+        # Create button group for exclusive selection
+        self.platform_button_group = QButtonGroup()
+        self.platform_button_group.setExclusive(True)
+        
+        # Hugging Face icon button
+        self.hf_button = QPushButton()
+        hf_icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "huggingface_logo.png")
+        if os.path.exists(hf_icon_path):
+            self.hf_button.setIcon(QIcon(hf_icon_path))
+            self.hf_button.setIconSize(QSize(32, 32))
+        self.hf_button.setCheckable(True)
+        self.hf_button.setChecked(True)  # Default to Hugging Face
+        self.hf_button.setStyleSheet("""
+            QPushButton {
+                border: 2px solid #ddd;
+                border-radius: 6px;
+                padding: 8px;
+                background-color: white;
+            }
+            QPushButton:hover {
+                border-color: #FFD21E;
+                background-color: #fffbf0;
+            }
+            QPushButton:checked {
+                border-color: #FFD21E;
+                background-color: #fff8e1;
+            }
+        """)
+        self.platform_button_group.addButton(self.hf_button, 0)
+        
+        # ModelScope icon button  
+        self.ms_button = QPushButton()
+        ms_icon_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "modelscope_logo.png")
+        if os.path.exists(ms_icon_path):
+            self.ms_button.setIcon(QIcon(ms_icon_path))
+            self.ms_button.setIconSize(QSize(32, 32))
+        self.ms_button.setCheckable(True)
+        self.ms_button.setStyleSheet("""
+            QPushButton {
+                border: 2px solid #ddd;
+                border-radius: 6px;
+                padding: 8px;
+                background-color: white;
+            }
+            QPushButton:hover {
+                border-color: #1677FF;
+                background-color: #f0f8ff;
+            }
+            QPushButton:checked {
+                border-color: #1677FF;
+                background-color: #e6f3ff;
+            }
+        """)
+        self.platform_button_group.addButton(self.ms_button, 1)
+        
+        # Connect button group to platform change handler
+        self.platform_button_group.idClicked.connect(self.on_platform_icon_changed)
+        
+        # Add buttons to layout (left-aligned)
+        icon_layout.addWidget(self.hf_button)
+        icon_layout.addWidget(self.ms_button)
+        icon_layout.addStretch()  # Push icons to the left
+        
+        layout.addLayout(icon_layout)
+        
         # Help Section
         help_frame = QFrame()
         help_frame.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
@@ -51,13 +120,14 @@ class MainWindow(QMainWindow):
         help_layout.addWidget(help_title)
         
         help_text = QLabel(
-            "1. Select download type (Model/Dataset)\n"
-            "2. Find a model/dataset on Hugging Face Hub\n"
-            "3. Copy the ID (e.g., 'bert-base-uncased' or 'squad' for datasets)\n"
-            "4. Select a save location\n"
-            "5. For private repositories, paste your access token\n"
-            "6. Click Download to start\n"
-            "7. Support resuming transmission from breakpoint"
+            "1. Select platform (Hugging Face or ModelScope)\n"
+            "2. Select download type (Model/Dataset)\n"
+            "3. Find a model/dataset on the selected hub\n"
+            "4. Copy the ID (e.g., 'bert-base-uncased' or 'qwen/Qwen2.5-Coder-1.5B-Instruct')\n"
+            "5. Select a save location\n"
+            "6. For private repositories, paste your access token\n"
+            "7. Click Download to start\n"
+            "8. Support resuming transmission from breakpoint"
         )
         help_text.setWordWrap(True)
         help_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
@@ -65,16 +135,16 @@ class MainWindow(QMainWindow):
         
         # Quick Links
         links_layout = QHBoxLayout()
-        browse_models_btn = QPushButton("🔍 Browse Models")
-        browse_models_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/models")))
-        browse_datasets_btn = QPushButton("📊 Browse Datasets")
-        browse_datasets_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/datasets")))
-        get_token_btn = QPushButton("🔑 Get Access Token")
-        get_token_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/settings/tokens")))
+        self.browse_models_btn = QPushButton("🔍 Browse HF Models")
+        self.browse_models_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/models")))
+        self.browse_datasets_btn = QPushButton("📊 Browse HF Datasets")
+        self.browse_datasets_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/datasets")))
+        self.get_token_btn = QPushButton("🔑 Get HF Token")
+        self.get_token_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/settings/tokens")))
         
-        links_layout.addWidget(browse_models_btn)
-        links_layout.addWidget(browse_datasets_btn)
-        links_layout.addWidget(get_token_btn)
+        links_layout.addWidget(self.browse_models_btn)
+        links_layout.addWidget(self.browse_datasets_btn)
+        links_layout.addWidget(self.get_token_btn)
         help_layout.addLayout(links_layout)
         
         layout.addWidget(help_frame)
@@ -84,6 +154,13 @@ class MainWindow(QMainWindow):
         separator.setFrameShape(QFrame.Shape.HLine)
         separator.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(separator)
+        
+        # Hidden Platform Selection (keep for compatibility)
+        self.platform_combo = QComboBox()
+        self.platform_combo.addItems(["Hugging Face", "ModelScope"])
+        self.platform_combo.setCurrentText("Hugging Face")
+        self.platform_combo.currentTextChanged.connect(self.on_platform_changed)
+        self.platform_combo.hide()  # Hide the combo box since we're using icons
         
         # Download Type
         type_layout = QHBoxLayout()
@@ -190,14 +267,80 @@ class MainWindow(QMainWindow):
         
         self.download_worker = None
 
+    def on_platform_icon_changed(self, button_id):
+        """Handle platform icon button changes"""
+        if button_id == 0:  # Hugging Face
+            platform_text = "Hugging Face"
+        else:  # ModelScope
+            platform_text = "ModelScope"
+        
+        # Update the hidden combo box to keep everything in sync
+        self.platform_combo.setCurrentText(platform_text)
+
+    def on_platform_changed(self, platform_text):
+        """当平台改变时更新UI"""
+        if platform_text == "ModelScope":
+            # 更新按钮和链接
+            self.browse_models_btn.setText("🔍 Browse MS Models")
+            self.browse_models_btn.clicked.disconnect()
+            self.browse_models_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://modelscope.cn/models")))
+            
+            self.browse_datasets_btn.setText("📊 Browse MS Datasets")
+            self.browse_datasets_btn.clicked.disconnect()
+            self.browse_datasets_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://modelscope.cn/datasets")))
+            
+            self.get_token_btn.setText("🔑 Get MS Token")
+            self.get_token_btn.clicked.disconnect()
+            self.get_token_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://modelscope.cn/my/myaccesstoken")))
+            
+            # 更新endpoint
+            self.endpoint_input.setText("https://modelscope.cn")
+            self.endpoint_input.setPlaceholderText("default: https://modelscope.cn")
+            
+            # 更新模型ID示例
+            if self.type_combo.currentText() == "Dataset":
+                self.repo_input.setPlaceholderText("e.g., modelscope/chinese-text-classification-dataset")
+            else:
+                self.repo_input.setPlaceholderText("e.g., qwen/Qwen2.5-Coder-1.5B-Instruct, damo/nlp_bert_base-chinese")
+        else:
+            # Hugging Face
+            self.browse_models_btn.setText("🔍 Browse HF Models")
+            self.browse_models_btn.clicked.disconnect()
+            self.browse_models_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/models")))
+            
+            self.browse_datasets_btn.setText("📊 Browse HF Datasets")
+            self.browse_datasets_btn.clicked.disconnect()
+            self.browse_datasets_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/datasets")))
+            
+            self.get_token_btn.setText("🔑 Get HF Token")
+            self.get_token_btn.clicked.disconnect()
+            self.get_token_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://huggingface.co/settings/tokens")))
+            
+            # 更新endpoint
+            self.endpoint_input.setText("https://hf-mirror.com")
+            self.endpoint_input.setPlaceholderText("default: https://hf-mirror.com")
+            
+            # 更新模型ID示例
+            if self.type_combo.currentText() == "Dataset":
+                self.repo_input.setPlaceholderText("e.g., squad, imdb, wikitext")
+            else:
+                self.repo_input.setPlaceholderText("e.g., bert-base-uncased or Qwen/Qwen2.5-Coder-1.5B-Instruct")
+
     def on_type_changed(self, type_text):
         """当下载类型改变时更新UI"""
+        platform = self.platform_combo.currentText()
         if type_text == "Dataset":
             self.repo_label.setText("Dataset ID:")
-            self.repo_input.setPlaceholderText("e.g., squad, imdb, wikitext")
+            if platform == "ModelScope":
+                self.repo_input.setPlaceholderText("e.g., modelscope/chinese-text-classification-dataset")
+            else:
+                self.repo_input.setPlaceholderText("e.g., squad, imdb, wikitext")
         else:
             self.repo_label.setText("Model ID:")
-            self.repo_input.setPlaceholderText("e.g., bert-base-uncased or Qwen/Qwen2.5-Coder-1.5B-Instruct")
+            if platform == "ModelScope":
+                self.repo_input.setPlaceholderText("e.g., qwen/Qwen2.5-Coder-1.5B-Instruct, damo/nlp_bert_base-chinese")
+            else:
+                self.repo_input.setPlaceholderText("e.g., bert-base-uncased or Qwen/Qwen2.5-Coder-1.5B-Instruct")
 
     def browse_path(self):
         path = QFileDialog.getExistingDirectory(self, "Select Save Directory")
@@ -209,12 +352,16 @@ class MainWindow(QMainWindow):
         save_path = self.path_input.text().strip()
         token = self.token_input.text().strip() or None
         repo_type = self.type_combo.currentText().lower()  # "model" or "dataset"
+        platform = self.platform_combo.currentText()  # "Hugging Face" or "ModelScope"
         
         # 获取 endpoint
         endpoint = self.endpoint_input.text().strip()
         # 如果用户完全清空了输入框，使用默认值
         if not endpoint:
-            endpoint = "https://hf-mirror.com"
+            if platform == "ModelScope":
+                endpoint = "https://modelscope.cn"
+            else:
+                endpoint = "https://hf-mirror.com"
         
         if not repo_id:
             repo_type_text = "model ID" if repo_type == "model" else "dataset ID"
@@ -231,7 +378,12 @@ class MainWindow(QMainWindow):
         self.update_status("Initializing download...")
         self.log_text.clear()
         
-        self.download_worker = DownloadWorker(repo_id, save_path, token, endpoint, repo_type)
+        # 根据平台选择相应的下载器
+        if platform == "ModelScope":
+            self.download_worker = UnifiedDownloadWorker('modelscope', repo_id, save_path, token, endpoint, repo_type)
+        else:
+            self.download_worker = UnifiedDownloadWorker('huggingface', repo_id, save_path, token, endpoint, repo_type)
+            
         self.download_worker.finished.connect(self.download_finished)
         self.download_worker.error.connect(self.download_error)
         self.download_worker.status.connect(self.update_status)
