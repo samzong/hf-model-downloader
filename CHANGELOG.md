@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.4.0 (2025-08-20)
+
+### Features
+
+- **downloader**: Add backward compatibility wrapper and unify downloaders
+  ([`953a329`](https://github.com/samzong/hf-model-downloader/commit/953a3290cd8fe24d1b2eecec00decfa4e9ffd1a1))
+
+
 ## v0.3.3 (2025-08-19)
 
 ### Refactoring
