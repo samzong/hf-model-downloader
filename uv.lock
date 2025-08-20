@@ -234,7 +234,7 @@ http = [
 
 [[package]]
 name = "hf-model-downloader"
-version = "0.5.0"
+version = "0.5.1"
 source = { virtual = "." }
 dependencies = [
     { name = "addict" },

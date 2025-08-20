@@ -11,6 +11,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from src.ui import MainWindow
+from src.resource_utils import get_asset_path
 
 if __name__ == "__main__":
     # 设置多进程方法 - 必须在创建 QApplication 之前设置
@@ -38,11 +39,11 @@ if __name__ == "__main__":
     # Set application icon based on platform
     system = platform.system().lower()
     if system == "darwin":
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.icns")
+        icon_path = get_asset_path("icon.icns")
     elif system == "windows":
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.ico")
+        icon_path = get_asset_path("icon.ico")
     else:
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icon.png")
+        icon_path = get_asset_path("icon.png")
 
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))

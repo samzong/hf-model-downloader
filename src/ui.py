@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .unified_downloader import UnifiedDownloadWorker
+from .resource_utils import get_asset_path
 
 GITHUB_REPO_URL = "https://github.com/samzong/hf-model-downloader"
 AUTHOR_NAME = "samzong"
@@ -30,19 +31,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("HF Model Downloader")
 
+        # Set window icon based on platform
         system = platform.system().lower()
         if system == "darwin":
-            icon_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "assets", "icon.icns"
-            )
+            icon_path = get_asset_path("icon.icns")
         elif system == "windows":
-            icon_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "assets", "icon.ico"
-            )
+            icon_path = get_asset_path("icon.ico")
         else:
-            icon_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)), "assets", "icon.png"
-            )
+            icon_path = get_asset_path("icon.png")
 
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
@@ -61,9 +57,7 @@ class MainWindow(QMainWindow):
         self.platform_button_group.setExclusive(True)
 
         self.hf_button = QPushButton()
-        hf_icon_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets", "huggingface_logo.png"
-        )
+        hf_icon_path = get_asset_path("huggingface_logo.png")
         if os.path.exists(hf_icon_path):
             self.hf_button.setIcon(QIcon(hf_icon_path))
             self.hf_button.setIconSize(QSize(32, 32))
@@ -88,9 +82,7 @@ class MainWindow(QMainWindow):
         self.platform_button_group.addButton(self.hf_button, 0)
 
         self.ms_button = QPushButton()
-        ms_icon_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "assets", "modelscope_logo.png"
-        )
+        ms_icon_path = get_asset_path("modelscope_logo.png")
         if os.path.exists(ms_icon_path):
             self.ms_button.setIcon(QIcon(ms_icon_path))
             self.ms_button.setIconSize(QSize(32, 32))

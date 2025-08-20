@@ -45,6 +45,8 @@ def build_app():
         f"--name={app_name}",
         "--add-data",
         "README.md:.",
+        "--add-data",
+        "assets:assets",  # 包含整个 assets 目录
         "--hidden-import",
         "huggingface_hub",
         "--hidden-import",
