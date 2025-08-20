@@ -10,10 +10,11 @@ import signal
 import threading
 import sys
 import time
+import weakref
 from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Optional, Callable
 import multiprocessing
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, QThread, pyqtSignal, QTimer, Qt, QMutex, QMutexLocker
 from .utils import cleanup_lock_files, cleanup_environment
 from tqdm.auto import tqdm
 
@@ -77,8 +78,12 @@ class LogHandler(logging.Handler):
         self.log_signal = log_signal
 
     def emit(self, record):
-        msg = self.format(record)
-        self.log_signal.emit(msg)
+        try:
+            msg = self.format(record)
+            self.log_signal.emit(msg)
+        except RuntimeError:
+            # Signal target has been destroyed, ignore
+            pass
 
 class UnifiedProgressBar(tqdm):
     def __init__(self, *args, **kwargs):
@@ -89,23 +94,37 @@ class UnifiedProgressBar(tqdm):
         super().update(n)
         self._current += n
 
-class UnifiedPipeWriter:
+class SafePipeWriter:
+    """Process-safe pipe writer that doesn't hold PyQt references"""
     def __init__(self, pipe):
-        self.pipe = pipe
+        if hasattr(pipe, 'send'):
+            self.pipe = pipe
+        else:
+            # Create a simple wrapper for non-pipe objects
+            self.pipe = None
         self.buffer = ""
         self.last_progress = ""
+        self._closed = False
     
     def send(self, message):
-        """Send message through pipe"""
-        self.pipe.send(message)
+        """Send message through pipe with error handling"""
+        if self._closed or not self.pipe:
+            return
+        try:
+            self.pipe.send(str(message))
+        except (BrokenPipeError, OSError, EOFError):
+            self._closed = True
     
     def write(self, text):
+        if self._closed:
+            return
+            
         # 处理所有输出，包括进度条
         if '\r' in text:  # 进度条更新
             # 清除旧的进度信息
             self.buffer = text.split('\r')[-1]
             if self.buffer.strip() and self.buffer != self.last_progress:
-                self.pipe.send(self.buffer)
+                self.send(self.buffer)
                 self.last_progress = self.buffer
         elif '\n' in text:  # 普通日志输出
             self.buffer += text
@@ -113,14 +132,19 @@ class UnifiedPipeWriter:
             self.buffer = lines[-1]  # 保留最后一个不完整的行
             for line in lines[:-1]:
                 if line.strip() and line != self.last_progress:  # 避免重复发送相同的进度信息
-                    self.pipe.send(line)
+                    self.send(line)
         else:
             self.buffer += text
     
     def flush(self):
-        if self.buffer.strip() and self.buffer != self.last_progress:
-            self.pipe.send(self.buffer)
+        if not self._closed and self.buffer.strip() and self.buffer != self.last_progress:
+            self.send(self.buffer)
             self.buffer = ""
+            
+    def close(self):
+        """Close the pipe writer"""
+        self._closed = True
+        self.pipe = None
 
 def download_huggingface(model_id: str, save_path: str, token: str = None, endpoint: str = None, pipe=None, repo_type: str = "model"):
     """HuggingFace platform-specific download logic"""
@@ -290,12 +314,50 @@ def unified_download_model(platform: str, model_id: str, save_path: str, token: 
             except:
                 pass
 
-class UnifiedDownloadWorker(QObject):
-    """Unified download worker supporting multiple platforms via configuration"""
+class ThreadSafeSignalEmitter(QObject):
+    """Thread-safe signal emitter with object lifecycle management"""
     finished = pyqtSignal()
     error = pyqtSignal(str)
     status = pyqtSignal(str)
     log = pyqtSignal(str)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._mutex = QMutex()
+        self._is_valid = True
+        self._parent_ref = weakref.ref(parent) if parent else None
+        
+    def safe_emit(self, signal_name: str, *args):
+        """Thread-safe signal emission with object validity checks"""
+        with QMutexLocker(self._mutex):
+            if not self._is_valid:
+                return False
+                
+            # Check parent object validity
+            if self._parent_ref:
+                parent = self._parent_ref()
+                if parent is None or not hasattr(parent, 'isRunning') or not parent.isRunning():
+                    return False
+            
+            try:
+                signal = getattr(self, signal_name, None)
+                if signal is not None:
+                    # Use QueuedConnection for cross-thread safety
+                    signal.emit(*args)
+                    return True
+            except (RuntimeError, AttributeError):
+                # Signal target destroyed or unavailable
+                self._is_valid = False
+                return False
+        return False
+    
+    def invalidate(self):
+        """Mark this emitter as invalid to prevent further emissions"""
+        with QMutexLocker(self._mutex):
+            self._is_valid = False
+
+class UnifiedDownloadWorker(QThread):
+    """Unified download worker supporting multiple platforms via configuration"""
     
     def __init__(self, platform, model_id, save_path, token=None, endpoint=None, repo_type="model"):
         super().__init__()
@@ -312,6 +374,15 @@ class UnifiedDownloadWorker(QObject):
         # Get platform configuration
         self._config = PLATFORM_CONFIGS[platform]
         self.endpoint = endpoint if endpoint else self._config['default_endpoint']
+        
+        # Create thread-safe signal emitter
+        self._signal_emitter = ThreadSafeSignalEmitter(self)
+        
+        # Expose signals through the emitter
+        self.finished = self._signal_emitter.finished
+        self.error = self._signal_emitter.error
+        self.status = self._signal_emitter.status
+        self.log = self._signal_emitter.log
         
         # 设置日志
         self._logger = logging.getLogger("UnifiedDownloadWorker")
@@ -340,21 +411,43 @@ class UnifiedDownloadWorker(QObject):
         self._pipe_reader = None
         self._pipe_writer = None
         self._output_thread = None
-        self._worker_thread = None
         self._is_running = False
+        self._cleanup_timer = None
+        
+    def _safe_emit(self, signal_name: str, *args):
+        """Safe signal emission wrapper"""
+        return self._signal_emitter.safe_emit(signal_name, *args)
 
-    def isRunning(self):
-        """检查下载是否正在运行"""
-        return self._is_running and self._worker_thread and self._worker_thread.is_alive()
+    @staticmethod
+    def _isolated_download_wrapper(platform, model_id, save_path, token, endpoint, pipe, repo_type):
+        """Process-isolated download wrapper that doesn't inherit PyQt state"""
+        try:
+            # Create safe pipe writer in the new process
+            safe_pipe = SafePipeWriter(pipe)
+            
+            # Call the unified download function
+            result = unified_download_model(platform, model_id, save_path, token, endpoint, safe_pipe, repo_type)
+            
+            # Clean up pipe
+            safe_pipe.close()
+            
+            return result
+        except Exception as e:
+            if pipe:
+                try:
+                    pipe.send(f"Process wrapper error: {str(e)}")
+                except:
+                    pass
+            return False
 
-    def start(self):
-        """启动下载任务"""
-        if not self.isRunning():
+    def run(self):
+        """QThread run method - this executes in the worker thread"""
+        try:
             self._is_running = True
             self._cancel_event.clear()
-            self._worker_thread = threading.Thread(target=self._run)
-            self._worker_thread.daemon = True
-            self._worker_thread.start()
+            self._run()
+        finally:
+            self._is_running = False
 
     def cancel_download(self):
         """取消下载"""
@@ -362,11 +455,16 @@ class UnifiedDownloadWorker(QObject):
             return
 
         self._logger.debug(f"Cancel {self.platform} download requested")
-        self.log.emit(f"Cancelling {self.platform} download...")
-        self.status.emit(f"Cancelling {self.platform} download...")
         
         # 设置取消事件
         self._cancel_event.set()
+        
+        # 停止输出处理线程
+        if self._output_thread and self._output_thread.is_alive():
+            try:
+                self._output_thread.join(timeout=1.0)
+            except Exception as e:
+                self._logger.error(f"Error stopping output thread: {e}")
         
         # 尝试正常终止进程
         if self._download_process and self._download_process.is_alive():
@@ -383,6 +481,8 @@ class UnifiedDownloadWorker(QObject):
                 if self._download_process.is_alive():
                     try:
                         self._download_process.kill()
+                        # 再等待一小段时间确保进程完全终止
+                        time.sleep(0.1)
                     except:
                         pass
                 
@@ -390,11 +490,23 @@ class UnifiedDownloadWorker(QObject):
             except Exception as e:
                 self._logger.error(f"Error terminating {self.platform} download process: {e}")
         
+        # 无效化信号发射器
+        if hasattr(self, '_signal_emitter'):
+            self._signal_emitter.invalidate()
+        
         # 清理环境和文件
         self.cleanup()
         self._is_running = False
-        self.error.emit(f"{self.platform} download cancelled by user")
-        self._logger.debug(f"{self.platform} download cancellation complete")
+        
+        # 使用延迟退出避免Qt对象竞态条件
+        if hasattr(self, '_cleanup_timer') and self._cleanup_timer:
+            self._cleanup_timer.stop()
+            self._cleanup_timer.deleteLater()
+            
+        self._cleanup_timer = QTimer()
+        self._cleanup_timer.setSingleShot(True)
+        self._cleanup_timer.timeout.connect(self.quit)
+        self._cleanup_timer.start(100)  # 100ms延迟
 
     def _run(self):
         """在独立线程中运行下载任务"""
@@ -404,22 +516,20 @@ class UnifiedDownloadWorker(QObject):
             cleanup_lock_files(self.repo_dir)
             
             repo_type_text = "model" if self.repo_type == "model" else "dataset"
-            self.status.emit(f"Downloading {self.platform} {repo_type_text} repository to {self.repo_dir}...")
-            self.log.emit(f"Starting {self.platform} download of {self.model_id} to {self.repo_dir}")
+            self._safe_emit('status', f"Downloading {self.platform} {repo_type_text} repository to {self.repo_dir}...")
+            self._safe_emit('log', f"Starting {self.platform} download of {self.model_id} to {self.repo_dir}")
 
-            # 创建管道和输出处理线程
+            # 创建进程安全的管道通信
             self._pipe_reader, self._pipe_writer = multiprocessing.Pipe(duplex=False)
-            pipe_writer = UnifiedPipeWriter(self._pipe_writer)
             
             # 启动输出处理线程
-            self._output_thread = threading.Thread(target=self._process_pipe_output)
-            self._output_thread.daemon = True
+            self._output_thread = threading.Thread(target=self._process_pipe_output, daemon=True)
             self._output_thread.start()
 
-            # 在新进程中启动下载任务
+            # 在新进程中启动下载任务 - 只传递原始pipe对象
             self._download_process = multiprocessing.get_context('spawn').Process(
-                target=unified_download_model,
-                args=(self.platform, self.model_id, self.save_path, self.token, self.endpoint, pipe_writer, self.repo_type)
+                target=self._isolated_download_wrapper,
+                args=(self.platform, self.model_id, self.save_path, self.token, self.endpoint, self._pipe_writer, self.repo_type)
             )
             self._download_process.start()
             
@@ -448,9 +558,9 @@ class UnifiedDownloadWorker(QObject):
             if download_completed:
                 cleanup_lock_files(self.repo_dir)
                 repo_type_text = "Model" if self.repo_type == "model" else "Dataset"
-                self.log.emit(f"{self.platform} {repo_type_text} downloaded successfully to: {self.repo_dir}")
+                self._safe_emit('log', f"{self.platform} {repo_type_text} downloaded successfully to: {self.repo_dir}")
                 self._logger.debug(f"{self.platform} download completed successfully")
-                self.finished.emit()
+                self._safe_emit('finished')
             elif self._cancel_event.is_set() and not download_completed:
                 raise Exception(f"{self.platform} download cancelled by user")
             else:
@@ -459,32 +569,38 @@ class UnifiedDownloadWorker(QObject):
         except Exception as e:
             error_msg = str(e)
             self._logger.error(f"{self.platform} download failed: {error_msg}")
-            self.log.emit(f"{self.platform} Error: {error_msg}")
-            self.error.emit(error_msg)
+            self._safe_emit('log', f"{self.platform} Error: {error_msg}")
+            self._safe_emit('error', error_msg)
         finally:
             self._logger.debug(f"{self.platform} download worker run completed")
             self._is_running = False
+            # 确保停止输出处理线程
+            if hasattr(self, '_cancel_event'):
+                self._cancel_event.set()
+            if hasattr(self, '_output_thread') and self._output_thread and self._output_thread.is_alive():
+                self._output_thread.join(timeout=1.0)
             self.cleanup()
 
-    def wait(self):
-        """等待下载完成"""
-        if self._worker_thread and self._worker_thread.is_alive():
-            self._worker_thread.join()
 
     def _process_pipe_output(self):
         """处理管道输出的线程函数"""
         while not self._cancel_event.is_set():
-            if self._pipe_reader.poll(0.01):  # 降低轮询间隔至10ms提升响应性
-                try:
-                    output = self._pipe_reader.recv()
-                    if output == "DOWNLOAD_COMPLETE":
+            try:
+                if self._pipe_reader and self._pipe_reader.poll(0.01):  # 降低轮询间隔至10ms提升响应性
+                    try:
+                        output = self._pipe_reader.recv()
+                        if output == "DOWNLOAD_COMPLETE":
+                            break
+                        # Use safe signal emission
+                        self._safe_emit('log', str(output))
+                    except EOFError:
                         break
-                    self.log.emit(output)
-                except EOFError:
-                    break
-                except Exception as e:
-                    self._logger.error(f"Error processing {self.platform} pipe output: {e}")
-                    continue
+                    except Exception as e:
+                        self._logger.error(f"Error processing {self.platform} pipe output: {e}")
+                        continue
+            except Exception as e:
+                self._logger.error(f"Critical error in pipe output processing: {e}")
+                break
 
     def cleanup(self):
         """增强的资源清理，确保完全释放"""
@@ -548,13 +664,29 @@ class UnifiedDownloadWorker(QObject):
             self._pipe_writer = None
             self._output_thread = None
             
+            # 无效化信号发射器作为最后一步
+            try:
+                if hasattr(self, '_signal_emitter'):
+                    self._signal_emitter.invalidate()
+                    self._logger.debug(f"{self.platform} signal emitter invalidated")
+            except Exception as e:
+                cleanup_errors.append(f"{self.platform} signal emitter cleanup failed: {e}")
+            
             if cleanup_errors:
                 error_summary = "; ".join(cleanup_errors)
                 self._logger.warning(f"{self.platform} cleanup completed with errors: {error_summary}")
-                self.log.emit(f"Warning: Some {self.platform} cleanup operations failed: {error_summary}")
+                # 最后尝试发送警告消息，如果失败则忽略
+                try:
+                    self._safe_emit('log', f"Warning: Some {self.platform} cleanup operations failed: {error_summary}")
+                except:
+                    pass
             else:
                 self._logger.debug(f"{self.platform} cleanup completed successfully")
                 
         except Exception as e:
             self._logger.exception(f"Critical error during {self.platform} cleanup")
-            self.log.emit(f"Critical {self.platform} cleanup error: {str(e)}")
+            # 最后尝试发送错误消息，如果失败则忽略
+            try:
+                self._safe_emit('log', f"Critical {self.platform} cleanup error: {str(e)}")
+            except:
+                pass

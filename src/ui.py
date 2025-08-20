@@ -267,6 +267,24 @@ class MainWindow(QMainWindow):
         
         self.download_worker = None
 
+    def closeEvent(self, event):
+        """Handle window close event - ensure worker is cleaned up"""
+        if self.download_worker and self.download_worker.isRunning():
+            # Disconnect all signals first to prevent crashes during cleanup
+            self.download_worker.finished.disconnect()
+            self.download_worker.error.disconnect()
+            self.download_worker.status.disconnect()
+            self.download_worker.log.disconnect()
+            
+            # Cancel the download and wait for completion
+            self.download_worker.cancel_download()
+            # Use a timeout to avoid indefinite blocking
+            if not self.download_worker.wait(5000):  # Wait max 5 seconds
+                # Force terminate if it doesn't finish gracefully
+                self.download_worker.terminate()
+                self.download_worker.wait()
+        event.accept()
+
     def on_platform_icon_changed(self, button_id):
         """Handle platform icon button changes"""
         if button_id == 0:  # Hugging Face
@@ -384,10 +402,14 @@ class MainWindow(QMainWindow):
         else:
             self.download_worker = UnifiedDownloadWorker('huggingface', repo_id, save_path, token, endpoint, repo_type)
             
-        self.download_worker.finished.connect(self.download_finished)
-        self.download_worker.error.connect(self.download_error)
-        self.download_worker.status.connect(self.update_status)
-        self.download_worker.log.connect(self.update_log)
+        # Use Qt.QueuedConnection to ensure thread-safe signal emission
+        self.download_worker.finished.connect(self.download_finished, Qt.ConnectionType.QueuedConnection)
+        self.download_worker.error.connect(self.download_error, Qt.ConnectionType.QueuedConnection)
+        self.download_worker.status.connect(self.update_status, Qt.ConnectionType.QueuedConnection)
+        self.download_worker.log.connect(self.update_log, Qt.ConnectionType.QueuedConnection)
+        
+        # Also connect to the worker's finished signal to handle cleanup
+        self.download_worker.finished.connect(self._on_worker_finished, Qt.ConnectionType.QueuedConnection)
         self.download_worker.start()
 
     def stop_download(self):
@@ -428,4 +450,14 @@ class MainWindow(QMainWindow):
             self.log_text.append("⏹️ Download stopped by user")
         else:
             self.update_status(f"❌ Error: {error_msg}", error=True)
-            self.log_text.append(f"❌ Error: {error_msg}") 
+            self.log_text.append(f"❌ Error: {error_msg}")
+    
+    def _on_worker_finished(self):
+        """Handle worker cleanup when download completes or fails"""
+        if hasattr(self, 'download_worker') and self.download_worker:
+            # Wait for thread to fully stop before cleanup
+            if self.download_worker.isRunning():
+                self.download_worker.wait(3000)  # Wait up to 3 seconds
+            
+            # Clear the worker reference
+            self.download_worker = None 
