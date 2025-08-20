@@ -2,12 +2,13 @@
 Utility functions for the Model Downloader
 """
 
-import os
 import logging
+import os
 
 # Configure logging
 logger = logging.getLogger("huggingface_hub")
 logger.setLevel(logging.INFO)
+
 
 def cleanup_lock_files(directory):
     """Clean up any .lock files in the directory and its subdirectories."""
@@ -15,20 +16,21 @@ def cleanup_lock_files(directory):
     try:
         for root, dirs, files in os.walk(directory):
             for file in files:
-                if file.endswith('.lock'):
+                if file.endswith(".lock"):
                     lock_file = os.path.join(root, file)
                     try:
                         os.remove(lock_file)
                         logger.info(f"Removed lock file: {lock_file}")
                     except Exception as e:
-                        logger.warning(f"Could not remove lock file {lock_file}: {str(e)}")
+                        logger.warning(f"Could not remove lock file {lock_file}: {e!s}")
     except Exception as e:
-        logger.warning(f"Error while cleaning lock files: {str(e)}")
+        logger.warning(f"Error while cleaning lock files: {e!s}")
+
 
 def cleanup_environment():
     """Clean up environment variables."""
     # Only clean up authentication and SSL-related environment variables, keep endpoint settings
-    env_vars = ['HF_TOKEN', 'HF_HUB_DISABLE_SSL_VERIFICATION']
+    env_vars = ["HF_TOKEN", "HF_HUB_DISABLE_SSL_VERIFICATION"]
     for var in env_vars:
         if var in os.environ:
-            del os.environ[var] 
+            del os.environ[var]
