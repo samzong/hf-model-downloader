@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.5.2 (2025-08-20)
+
+### Bug Fixes
+
+- **resource**: Add utility to load asset paths in development and packaged app
+  ([`c5d7b26`](https://github.com/samzong/hf-model-downloader/commit/c5d7b2644d491340cf7bc9bc24b7e095d3a81a50))
+
+
 ## v0.5.1 (2025-08-20)
 
 ### Chores
