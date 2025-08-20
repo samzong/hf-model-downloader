@@ -212,7 +212,7 @@ def download_modelscope(model_id: str, save_path: str, token: str = None, endpoi
     """ModelScope platform-specific download logic"""
     try:
         from modelscope.hub.snapshot_download import snapshot_download
-        from modelscope import HubApi
+        from modelscope import HubApi, MsDataset
     except ImportError as e:
         if pipe:
             pipe.send(f"Error: ModelScope library not installed. Please install with: uv add modelscope")
@@ -234,30 +234,52 @@ def download_modelscope(model_id: str, save_path: str, token: str = None, endpoi
     if endpoint:
         os.environ['MODELSCOPE_ENDPOINT'] = endpoint
     
-    # 计算正确的下载路径 - 使用 local_dir 直接指定目录
+    # 计算正确的下载路径
     repo_name = model_id.split('/')[-1]
     repo_dir = os.path.join(save_path, repo_name)
     
     if pipe:
         pipe.send(f"Starting ModelScope download of {model_id}")
-        pipe.send(f"Downloading Model from https://www.modelscope.cn to directory: {repo_dir}")
+        if repo_type == "dataset":
+            pipe.send(f"Downloading Dataset from https://www.modelscope.cn to directory: {repo_dir}")
+        else:
+            pipe.send(f"Downloading Model from https://www.modelscope.cn to directory: {repo_dir}")
     
     try:
-        # 根据文档使用正确的 ModelScope snapshot_download 参数
-        result = snapshot_download(
-            model_id=model_id,
-            local_dir=repo_dir,  # 指定模型的下载存放目录
-            revision='master',   # 模型的Git版本，分支名或tag
-            ignore_patterns=[    # 指定要忽略下载的文件模式
-                "*.h5", 
-                "*.ot", 
-                "*.msgpack", 
-                "*.bin", 
-                "*.pkl", 
-                "*.onnx", 
-                ".*"
-            ]
-        )
+        if repo_type == "dataset":
+            # 使用 MsDataset 下载数据集
+            if pipe:
+                pipe.send("Using MsDataset for dataset download...")
+            
+            # 创建目标目录
+            os.makedirs(repo_dir, exist_ok=True)
+            
+            # 使用 MsDataset.load 下载数据集
+            dataset = MsDataset.load(
+                dataset_name=model_id,
+                cache_dir=repo_dir  # 指定缓存目录
+            )
+            
+            if pipe:
+                pipe.send(f"ModelScope dataset loaded and cached to: {repo_dir}")
+            
+            result = repo_dir
+        else:
+            # 使用 snapshot_download 下载模型
+            result = snapshot_download(
+                model_id=model_id,
+                local_dir=repo_dir,  # 指定模型的下载存放目录
+                revision='master',   # 模型的Git版本，分支名或tag
+                ignore_patterns=[    # 指定要忽略下载的文件模式
+                    "*.h5", 
+                    "*.ot", 
+                    "*.msgpack", 
+                    "*.bin", 
+                    "*.pkl", 
+                    "*.onnx", 
+                    ".*"
+                ]
+            )
         
         if pipe:
             pipe.send(f"ModelScope download completed: {result}")
