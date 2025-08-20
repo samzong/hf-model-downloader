@@ -211,39 +211,65 @@ def download_huggingface(model_id: str, save_path: str, token: str = None, endpo
 def download_modelscope(model_id: str, save_path: str, token: str = None, endpoint: str = None, pipe=None, repo_type: str = "model"):
     """ModelScope platform-specific download logic"""
     try:
-        from modelscope import snapshot_download
+        from modelscope.hub.snapshot_download import snapshot_download
+        from modelscope import HubApi
     except ImportError as e:
         if pipe:
             pipe.send(f"Error: ModelScope library not installed. Please install with: uv add modelscope")
         return False
     
-    # 设置 token
+    # 处理认证 token
     if token:
-        os.environ['MODELSCOPE_API_TOKEN'] = token
+        try:
+            api = HubApi()
+            api.login(token)
+            if pipe:
+                pipe.send("ModelScope authentication successful")
+        except Exception as e:
+            if pipe:
+                pipe.send(f"ModelScope authentication failed: {str(e)}")
+            # 继续尝试下载，可能是公开模型
     
-    # 设置 endpoint
+    # 设置 endpoint（如果需要）
     if endpoint:
         os.environ['MODELSCOPE_ENDPOINT'] = endpoint
     
-    # 执行下载
-    repo_dir = os.path.join(save_path, model_id.split('/')[-1])
+    # 计算正确的下载路径 - 使用 local_dir 直接指定目录
+    repo_name = model_id.split('/')[-1]
+    repo_dir = os.path.join(save_path, repo_name)
     
     if pipe:
         pipe.send(f"Starting ModelScope download of {model_id}")
+        pipe.send(f"Downloading Model from https://www.modelscope.cn to directory: {repo_dir}")
     
-    # 使用 ModelScope 的 snapshot_download
-    result = snapshot_download(
-        model_id=model_id,
-        cache_dir=repo_dir,
-        revision='master',  # 默认使用 master 分支
-        repo_type=repo_type,  # 添加 repo_type 参数支持数据集下载
-        ignore_file_pattern=["*.h5", "*.ot", "*.msgpack", "*.bin", "*.pkl", "*.onnx", ".*"]
-    )
-    
-    if pipe:
-        pipe.send(f"ModelScope download completed: {result}")
-    
-    return True
+    try:
+        # 根据文档使用正确的 ModelScope snapshot_download 参数
+        result = snapshot_download(
+            model_id=model_id,
+            local_dir=repo_dir,  # 指定模型的下载存放目录
+            revision='master',   # 模型的Git版本，分支名或tag
+            ignore_patterns=[    # 指定要忽略下载的文件模式
+                "*.h5", 
+                "*.ot", 
+                "*.msgpack", 
+                "*.bin", 
+                "*.pkl", 
+                "*.onnx", 
+                ".*"
+            ]
+        )
+        
+        if pipe:
+            pipe.send(f"ModelScope download completed: {result}")
+        
+        return True
+        
+    except Exception as e:
+        error_msg = f"ModelScope download failed: {str(e)}"
+        if pipe:
+            pipe.send(error_msg)
+        print(f"Error: {error_msg}")
+        return False
 
 def unified_download_model(platform: str, model_id: str, save_path: str, token: str = None, endpoint: str = None, pipe=None, repo_type: str = "model"):
     """Unified download function that delegates to platform-specific implementations"""
