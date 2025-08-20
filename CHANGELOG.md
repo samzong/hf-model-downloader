@@ -2,6 +2,43 @@
 
 <!-- version list -->
 
+## v0.5.1 (2025-08-20)
+
+### Chores
+
+- **dependencies**: Update hf-model-downloader version to 0.5.0 in uv.lock
+  ([`2228db0`](https://github.com/samzong/hf-model-downloader/commit/2228db04e622f398895d4738cfa1f03ec8a1471a))
+
+- **lint**: Add initial Ruff configuration file with selected rules and formatting
+  ([`bff47ad`](https://github.com/samzong/hf-model-downloader/commit/bff47aded0fc4d8139eb24b90a5414ceb28fc205))
+
+### Code Style
+
+- **ui**: Reorganize imports and improve code formatting in MainWindow class
+  ([`bb158e3`](https://github.com/samzong/hf-model-downloader/commit/bb158e34e36a8aecf8664b192b153a8da2fa8cd1))
+
+### Refactoring
+
+- **build**: Improve build.py formatting and architecture detection logic
+  ([`efaeb53`](https://github.com/samzong/hf-model-downloader/commit/efaeb530c569caea7f5197288677854a67f9f23e))
+
+- **downloader**: Update deprecated classes and functions to use UnifiedDownloadWorker and
+  unified_download_model
+  ([`85e420f`](https://github.com/samzong/hf-model-downloader/commit/85e420f2db954912457f7423381dc17520a311b6))
+
+- **icon_generator**: Reorganize imports and improve image processing functions readability
+  ([`4de6685`](https://github.com/samzong/hf-model-downloader/commit/4de6685e0a4aba8846acf864c4e9f6a557c78086))
+
+- **main**: Improve multiprocessing setup and env handling for PyQt app
+  ([`1018c68`](https://github.com/samzong/hf-model-downloader/commit/1018c68d58532a20d4ed313df406d781c5cc8aca))
+
+### Testing
+
+- **tests**: Add basic end-to-end tests for huggingface and modelscope downloads with PyQt event
+  loop
+  ([`7975446`](https://github.com/samzong/hf-model-downloader/commit/797544657ad8632874bfe01f9e95b3ce7a1ed8f1))
+
+
 ## v0.5.0 (2025-08-20)
 
 ### Features
