@@ -2,6 +2,22 @@
 
 <!-- version list -->
 
+## v0.5.0 (2025-08-20)
+
+### Features
+
+- **downloader**: Add dataset support using MsDataset in ModelScope downloader
+  ([`a5ff19f`](https://github.com/samzong/hf-model-downloader/commit/a5ff19fd93d5ad9e31ecbbecf163cb77f6e37178))
+
+### Refactoring
+
+- **download**: Improve ModelScope download with authentication and error handling
+  ([`9f0fc6b`](https://github.com/samzong/hf-model-downloader/commit/9f0fc6b921146db43fd6e8b176577ed4d19e0fd2))
+
+- **ui, unified_downloader**: Enhance download worker cleanup and thread safety
+  ([`b1c6331`](https://github.com/samzong/hf-model-downloader/commit/b1c6331472b24b1ab3830678532205ccaaf42296))
+
+
 ## v0.4.0 (2025-08-20)
 
 ### Features
