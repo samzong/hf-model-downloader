@@ -1,0 +1,36 @@
+# Basic Ruff configuration
+line-length = 88
+target-version = "py38"
+
+# Exclude common directories
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[lint]
+# Enable only essential and important rules
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings  
+    "F",   # Pyflakes
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade (modern Python syntax)
+    "B",   # flake8-bugbear (common bugs)
+]
+
+# Ignore overly strict rules
+ignore = [
+    "B008",  # do not perform function calls in argument defaults
+]
+
+# Allow auto-fixing
+fixable = ["ALL"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
