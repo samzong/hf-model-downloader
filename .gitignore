@@ -13,6 +13,9 @@ venv/
 .env/
 .venv/
 
+# UV lock file (application project - regenerate locally)
+uv.lock
+
 # OS specific
 .DS_Store
 Thumbs.db 
