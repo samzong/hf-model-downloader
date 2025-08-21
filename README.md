@@ -3,7 +3,7 @@
 <div align="center">
   <img src="./assets/icon.png" alt="hf-model-downloader logo" width="200" />
   <br />
-  <p>A cross-platform GUI application for easily downloading Hugging Face models without requiring technical knowledge or setup.</p>
+  <p>Downloads models from Hugging Face and ModelScope. Has a GUI so you don't need to mess with command lines.</p>
   <p>
     <a href="https://github.com/samzong/hf-model-downloader/releases"><img src="https://img.shields.io/github/v/release/samzong/hf-model-downloader" alt="Release Version" /></a>
     <a href="https://github.com/samzong/hf-model-downloader/blob/main/LICENSE"><img src="https://img.shields.io/github/license/samzong/hf-model-downloader" alt="MIT License" /></a>
@@ -13,37 +13,47 @@
 
 ![screenshot](./screenshot.png)
 
-## Features
+## What it does
 
-- Simple GUI interface for downloading Hugging Face models
-- Support for custom Hugging Face tokens
-- Custom endpoint/proxy support
-- Download progress tracking
-- Cross-platform support (Windows, macOS, Linux)
-- No Python environment setup required
+- Downloads Hugging Face and ModelScope models through a simple GUI
+- Handles authentication tokens
+- Shows download progress
+- Works on Windows, macOS, Linux
+- Creates standalone apps you can just run
 
-## Development Setup
+## Just want to use it?
 
-1. Clone the repository:
+Download from [releases](https://github.com/samzong/hf-model-downloader/releases). Run the app. Done.
+
+## Development
+
 ```bash
-git clone https://github.com/samzong/model-downloader.git
-cd model-downloader
+git clone https://github.com/samzong/hf-model-downloader.git
+cd hf-model-downloader
+
+# Modern way (recommended)
+uv sync
+uv run main.py
+
+# Old way
+make install
+make dev
 ```
 
-2. Install dependencies:
+## Build
+
 ```bash
-pip install -r requirements.txt
+# Simple build
+make build
+
+# Full package with DMG (macOS)
+make package
+
+# Just test the build works
+make test-build
 ```
 
-3. Run the application:
-```bash
-python main.py
-```
-
-## Building from Source
-
-To create standalone executables:
-
+Or manually with PyInstaller:
 ```bash
 pip install pyinstaller
 pyinstaller --onedir --windowed main.py
@@ -51,4 +61,4 @@ pyinstaller --onedir --windowed main.py
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details
+Under the MIT License - see the [LICENSE](LICENSE).
