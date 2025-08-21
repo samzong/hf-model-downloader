@@ -2,6 +2,30 @@
 
 <!-- version list -->
 
+## v0.5.3 (2025-08-21)
+
+### Chores
+
+- Remove uv.lock from version control
+  ([`4d54078`](https://github.com/samzong/hf-model-downloader/commit/4d540786f173d79e7797e77a45a9bb5a1ce12dc0))
+
+- **dependencies**: Bump hf-model-downloader version to 0.5.2
+  ([`a0a0245`](https://github.com/samzong/hf-model-downloader/commit/a0a0245dc704802f3ec820d7e174c9b717ad9136))
+
+### Documentation
+
+- **readme**: Update description and usage instructions for clarity and accuracy
+  ([`4962c25`](https://github.com/samzong/hf-model-downloader/commit/4962c25422d4c44f91b40dfbb04d470ec77367d4))
+
+- **readme**: Update screenshot image to reflect UI changes
+  ([`dfdc440`](https://github.com/samzong/hf-model-downloader/commit/dfdc440f99860e5dd4a58c20641e71465ec0a005))
+
+### Refactoring
+
+- Clean up code and improve comments across multiple files
+  ([`0c8540a`](https://github.com/samzong/hf-model-downloader/commit/0c8540a1e42ea288c54fd621020a60e10dac4553))
+
+
 ## v0.5.2 (2025-08-20)
 
 ### Bug Fixes
