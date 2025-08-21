@@ -26,7 +26,7 @@ def get_resource_path(relative_path):
         # Running in development environment
         # Get the parent directory of this file (go up from src/ to project root)
         base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    
+
     return os.path.join(base_path, relative_path)
 
 

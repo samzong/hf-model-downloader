@@ -18,8 +18,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .unified_downloader import UnifiedDownloadWorker
 from .resource_utils import get_asset_path
+from .unified_downloader import UnifiedDownloadWorker
 
 GITHUB_REPO_URL = "https://github.com/samzong/hf-model-downloader"
 AUTHOR_NAME = "samzong"

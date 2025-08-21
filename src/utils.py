@@ -5,7 +5,6 @@ Utility functions for the Model Downloader
 import logging
 import os
 
-# Configure logging
 logger = logging.getLogger("huggingface_hub")
 logger.setLevel(logging.INFO)
 
@@ -29,7 +28,6 @@ def cleanup_lock_files(directory):
 
 def cleanup_environment():
     """Clean up environment variables."""
-    # Only clean up authentication and SSL-related environment variables, keep endpoint settings
     env_vars = ["HF_TOKEN", "HF_HUB_DISABLE_SSL_VERIFICATION"]
     for var in env_vars:
         if var in os.environ:

@@ -39,7 +39,7 @@ PLATFORM_CONFIGS = {
 
 
 class LoggerManager:
-    """统一管理日志处理器，防止内存泄漏"""
+    """Unified logger handler management to prevent memory leaks"""
 
     _instance = None
     _handlers = {}
@@ -50,24 +50,22 @@ class LoggerManager:
         return cls._instance
 
     def get_handler(self, signal):
-        """获取或创建日志处理器"""
+        """Get or create log handler"""
         handler_id = id(signal)
         if handler_id not in self._handlers:
             self._handlers[handler_id] = LogHandler(signal)
         return self._handlers[handler_id]
 
     def cleanup_handler(self, signal):
-        """安全清理日志处理器"""
+        """Safely cleanup log handler"""
         handler_id = id(signal)
         if handler_id in self._handlers:
             handler = self._handlers.pop(handler_id)
-            # 从所有相关logger中移除
             for config in PLATFORM_CONFIGS.values():
                 logger_name = config["logger_name"]
                 target_logger = logging.getLogger(logger_name)
                 if handler in target_logger.handlers:
                     target_logger.removeHandler(handler)
-            # 清理其他日志
             for logger_name in ["UnifiedDownloadWorker", "PyQt6"]:
                 target_logger = logging.getLogger(logger_name)
                 if handler in target_logger.handlers:
@@ -124,21 +122,19 @@ class SafePipeWriter:
         if self._closed:
             return
 
-        # 处理所有输出，包括进度条
-        if "\r" in text:  # 进度条更新
-            # 清除旧的进度信息
+        if "\r" in text:
             self.buffer = text.split("\r")[-1]
             if self.buffer.strip() and self.buffer != self.last_progress:
                 self.send(self.buffer)
                 self.last_progress = self.buffer
-        elif "\n" in text:  # 普通日志输出
+        elif "\n" in text:
             self.buffer += text
             lines = self.buffer.split("\n")
-            self.buffer = lines[-1]  # 保留最后一个不完整的行
+            self.buffer = lines[-1]
             for line in lines[:-1]:
                 if (
                     line.strip() and line != self.last_progress
-                ):  # 避免重复发送相同的进度信息
+                ):
                     self.send(line)
         else:
             self.buffer += text
@@ -176,15 +172,12 @@ def download_huggingface(
             )
         return False
 
-    # 设置环境变量
     if token:
         HfFolder.save_token(token)
         os.environ["HF_TOKEN"] = token
 
-    # 设置 endpoint 和相关环境变量
     if endpoint:
         os.environ["HF_ENDPOINT"] = endpoint
-        # 只有使用镜像站时才禁用 SSL 验证
         if "hf-mirror.com" in endpoint:
             os.environ["HF_HUB_DISABLE_SSL_VERIFICATION"] = "1"
         else:
@@ -192,22 +185,17 @@ def download_huggingface(
     else:
         os.environ.pop("HF_HUB_DISABLE_SSL_VERIFICATION", None)
 
-    # 禁用 HF Transfer，使用标准 HTTPS 下载
     os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
-    # 设置较大的连接超时
     os.environ["HF_HUB_DOWNLOAD_TIMEOUT"] = "300"
-    # 启用并发下载
     os.environ["HF_HUB_ENABLE_CONCURRENT_DOWNLOAD"] = "1"
 
-    # 执行下载
     repo_dir = os.path.join(save_path, model_id.split("/")[-1])
 
     if pipe:
         pipe.send(f"Starting HuggingFace download of {model_id}")
 
-    # 优化线程数计算：I/O密集型任务使用CPU核心数+2，避免过度配置
     cpu_count = multiprocessing.cpu_count()
-    max_workers = min(cpu_count + 2, 8)  # 最多8个并发连接
+    max_workers = min(cpu_count + 2, 8)
 
     result = snapshot_download(
         repo_id=model_id,
@@ -220,7 +208,7 @@ def download_huggingface(
         ignore_patterns=["*.h5", "*.ot", "*.msgpack", "*.bin", "*.pkl", "*.onnx", ".*"],
         local_files_only=False,
         etag_timeout=30,
-        proxies=None,  # 不使用代理
+        proxies=None,
         endpoint=endpoint,
     )
 
@@ -249,7 +237,6 @@ def download_modelscope(
             )
         return False
 
-    # 处理认证 token
     if token:
         try:
             api = HubApi()
@@ -259,13 +246,10 @@ def download_modelscope(
         except Exception as e:
             if pipe:
                 pipe.send(f"ModelScope authentication failed: {e!s}")
-            # 继续尝试下载，可能是公开模型
 
-    # 设置 endpoint（如果需要）
     if endpoint:
         os.environ["MODELSCOPE_ENDPOINT"] = endpoint
 
-    # 计算正确的下载路径
     repo_name = model_id.split("/")[-1]
     repo_dir = os.path.join(save_path, repo_name)
 
@@ -282,17 +266,14 @@ def download_modelscope(
 
     try:
         if repo_type == "dataset":
-            # 使用 MsDataset 下载数据集
             if pipe:
                 pipe.send("Using MsDataset for dataset download...")
 
-            # 创建目标目录
             os.makedirs(repo_dir, exist_ok=True)
 
-            # 使用 MsDataset.load 下载数据集
             dataset = MsDataset.load(
                 dataset_name=model_id,
-                cache_dir=repo_dir,  # 指定缓存目录
+                cache_dir=repo_dir,
             )
 
             if pipe:
@@ -300,12 +281,11 @@ def download_modelscope(
 
             result = repo_dir
         else:
-            # 使用 snapshot_download 下载模型
             result = snapshot_download(
                 model_id=model_id,
-                local_dir=repo_dir,  # 指定模型的下载存放目录
-                revision="master",  # 模型的Git版本，分支名或tag
-                ignore_patterns=[  # 指定要忽略下载的文件模式
+                local_dir=repo_dir,
+                revision="master",
+                ignore_patterns=[
                     "*.h5",
                     "*.ot",
                     "*.msgpack",
@@ -350,14 +330,12 @@ def unified_download_model(
         print("Process Start Method:", multiprocessing.get_start_method())
         print("=== End Debug Info ===\n")
 
-        # 重定向标准输出和标准错误
         old_stdout = sys.stdout
         old_stderr = sys.stderr
         if pipe:
             sys.stdout = pipe
             sys.stderr = pipe
 
-        # 设置信号处理，确保可以正确响应终止信号
         def signal_handler(signum, frame):
             if pipe:
                 pipe.send("Download interrupted by signal")
@@ -367,7 +345,6 @@ def unified_download_model(
         signal.signal(signal.SIGINT, signal_handler)
 
         try:
-            # 根据平台调用相应的下载函数
             success = False
             if platform == "huggingface":
                 success = download_huggingface(
@@ -382,11 +359,10 @@ def unified_download_model(
                     pipe.send(f"Error: Unsupported platform '{platform}'")
                 return False
 
-            # 如果下载失败，确保进程以错误退出
             if not success:
                 if pipe:
                     pipe.send(f"Error: {platform} download failed")
-                sys.exit(1)  # 确保进程以错误退出码退出
+                sys.exit(1)
 
             return success
 
@@ -401,7 +377,6 @@ def unified_download_model(
             pipe.send(f"Error during {platform} download: {error_msg}")
         return False
     finally:
-        # 恢复标准输出和标准错误
         if pipe:
             sys.stdout = old_stdout
             sys.stderr = old_stderr
@@ -497,32 +472,27 @@ class UnifiedDownloadWorker(QThread):
         self.status = self._signal_emitter.status
         self.log = self._signal_emitter.log
 
-        # 设置日志
         self._logger = logging.getLogger("UnifiedDownloadWorker")
         self._logger.setLevel(logging.DEBUG)
 
-        # 使用统一日志管理器
         self.logger_manager = LoggerManager()
         self.log_handler = self.logger_manager.get_handler(self.log)
         self.log_handler.setFormatter(
             logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
         )
 
-        # 添加处理器到相关日志记录器
         platform_logger = logging.getLogger(self._config["logger_name"])
         platform_logger.addHandler(self.log_handler)
         self._logger.addHandler(self.log_handler)
         qt_logger = logging.getLogger("PyQt6")
         qt_logger.addHandler(self.log_handler)
 
-        # 保存仓库目录路径
         self.repo_name = self.model_id.split("/")[-1]
         self.repo_dir = os.path.join(self.save_path, self.repo_name)
         self._logger.debug(
             f"Initialized {platform} worker for {repo_type} {model_id} with save path {save_path}"
         )
 
-        # 添加取消事件和进程引用
         self._cancel_event = threading.Event()
         self._download_process = None
         self._pipe_reader = None
@@ -571,38 +541,31 @@ class UnifiedDownloadWorker(QThread):
             self._is_running = False
 
     def cancel_download(self):
-        """取消下载"""
+        """Cancel download"""
         if not self.isRunning():
             return
 
         self._logger.debug(f"Cancel {self.platform} download requested")
 
-        # 设置取消事件
         self._cancel_event.set()
 
-        # 停止输出处理线程
         if self._output_thread and self._output_thread.is_alive():
             try:
                 self._output_thread.join(timeout=1.0)
             except Exception as e:
                 self._logger.error(f"Error stopping output thread: {e}")
 
-        # 尝试正常终止进程
         if self._download_process and self._download_process.is_alive():
             try:
-                # 首先尝试正常终止
                 self._download_process.terminate()
-                # 等待一段时间让进程正常退出
-                for _ in range(30):  # 最多等待3秒
+                for _ in range(30):
                     if not self._download_process.is_alive():
                         break
                     time.sleep(0.1)
 
-                # 如果进程还在运行，强制终止
                 if self._download_process.is_alive():
                     try:
                         self._download_process.kill()
-                        # 再等待一小段时间确保进程完全终止
                         time.sleep(0.1)
                     except:
                         pass
@@ -613,15 +576,12 @@ class UnifiedDownloadWorker(QThread):
                     f"Error terminating {self.platform} download process: {e}"
                 )
 
-        # 无效化信号发射器
         if hasattr(self, "_signal_emitter"):
             self._signal_emitter.invalidate()
 
-        # 清理环境和文件
         self.cleanup()
         self._is_running = False
 
-        # 使用延迟退出避免Qt对象竞态条件
         if hasattr(self, "_cleanup_timer") and self._cleanup_timer:
             self._cleanup_timer.stop()
             self._cleanup_timer.deleteLater()
@@ -629,13 +589,12 @@ class UnifiedDownloadWorker(QThread):
         self._cleanup_timer = QTimer()
         self._cleanup_timer.setSingleShot(True)
         self._cleanup_timer.timeout.connect(self.quit)
-        self._cleanup_timer.start(100)  # 100ms延迟
+        self._cleanup_timer.start(100)
 
     def _run(self):
-        """在独立线程中运行下载任务"""
+        """Run download task in isolated thread"""
         try:
             self._logger.debug(f"Starting {self.platform} download worker run")
-            # 清理现有的锁文件
             cleanup_lock_files(self.repo_dir)
 
             repo_type_text = "model" if self.repo_type == "model" else "dataset"
@@ -648,16 +607,13 @@ class UnifiedDownloadWorker(QThread):
                 f"Starting {self.platform} download of {self.model_id} to {self.repo_dir}",
             )
 
-            # 创建进程安全的管道通信
             self._pipe_reader, self._pipe_writer = multiprocessing.Pipe(duplex=False)
 
-            # 启动输出处理线程
             self._output_thread = threading.Thread(
                 target=self._process_pipe_output, daemon=True
             )
             self._output_thread.start()
 
-            # 在新进程中启动下载任务 - 只传递原始pipe对象
             self._download_process = multiprocessing.get_context("spawn").Process(
                 target=self._isolated_download_wrapper,
                 args=(
@@ -672,7 +628,6 @@ class UnifiedDownloadWorker(QThread):
             )
             self._download_process.start()
 
-            # 等待下载完成或取消
             download_completed = False
             while self._download_process.is_alive():
                 if self._cancel_event.is_set():
@@ -681,21 +636,17 @@ class UnifiedDownloadWorker(QThread):
                     break
                 self._download_process.join(timeout=0.1)
 
-            # 检查下载是否成功完成
             if self._download_process.exitcode == 0:
                 download_completed = True
             else:
-                # 记录进程退出码以便调试
                 self._logger.debug(
                     f"{self.platform} download process exited with code: {self._download_process.exitcode}"
                 )
 
-            # 停止输出处理线程
             self._cancel_event.set()
             if self._output_thread:
                 self._output_thread.join()
 
-            # 处理下载结果
             if download_completed:
                 cleanup_lock_files(self.repo_dir)
                 repo_type_text = "Model" if self.repo_type == "model" else "Dataset"
@@ -718,7 +669,6 @@ class UnifiedDownloadWorker(QThread):
         finally:
             self._logger.debug(f"{self.platform} download worker run completed")
             self._is_running = False
-            # 确保停止输出处理线程
             if hasattr(self, "_cancel_event"):
                 self._cancel_event.set()
             if (
@@ -730,12 +680,12 @@ class UnifiedDownloadWorker(QThread):
             self.cleanup()
 
     def _process_pipe_output(self):
-        """处理管道输出的线程函数"""
+        """Process pipe output in thread"""
         while not self._cancel_event.is_set():
             try:
                 if self._pipe_reader and self._pipe_reader.poll(
                     0.01
-                ):  # 降低轮询间隔至10ms提升响应性
+                ):
                     try:
                         output = self._pipe_reader.recv()
                         if output == "DOWNLOAD_COMPLETE":
@@ -754,22 +704,18 @@ class UnifiedDownloadWorker(QThread):
                 break
 
     def cleanup(self):
-        """增强的资源清理，确保完全释放"""
+        """Enhanced resource cleanup ensuring complete release"""
         cleanup_errors = []
 
         try:
             self._logger.debug(f"Starting {self.platform} comprehensive cleanup")
 
-            # 保存当前的 endpoint 设置
             current_endpoint = os.environ.get(self._config["endpoint_env"])
 
-            # 清理环境变量
             try:
                 cleanup_environment()
-                # 清理平台特定的环境变量
                 os.environ.pop(self._config["token_env"], None)
                 os.environ.pop(self._config["endpoint_env"], None)
-                # 清理 HuggingFace 特定的环境变量
                 if self.platform == "huggingface":
                     os.environ.pop("HF_HUB_DISABLE_SSL_VERIFICATION", None)
                     os.environ.pop("HF_HUB_ENABLE_HF_TRANSFER", None)
@@ -781,11 +727,9 @@ class UnifiedDownloadWorker(QThread):
                     f"{self.platform} environment cleanup failed: {e}"
                 )
 
-            # 恢复 endpoint 设置
             if current_endpoint:
                 os.environ[self._config["endpoint_env"]] = current_endpoint
 
-            # 清理管道连接
             try:
                 if hasattr(self, "_pipe_reader") and self._pipe_reader:
                     self._pipe_reader.close()
@@ -795,7 +739,6 @@ class UnifiedDownloadWorker(QThread):
             except Exception as e:
                 cleanup_errors.append(f"{self.platform} pipe cleanup failed: {e}")
 
-            # 使用统一管理器清理日志处理器
             try:
                 if hasattr(self, "logger_manager"):
                     self.logger_manager.cleanup_handler(self.log)
@@ -805,21 +748,18 @@ class UnifiedDownloadWorker(QThread):
                     f"{self.platform} log handler cleanup failed: {e}"
                 )
 
-            # 清理锁文件
             try:
                 cleanup_lock_files(self.repo_dir)
                 self._logger.debug(f"{self.platform} lock files cleaned up")
             except Exception as e:
                 cleanup_errors.append(f"{self.platform} lock file cleanup failed: {e}")
 
-            # 重置内部状态
             self._is_running = False
             self._download_process = None
             self._pipe_reader = None
             self._pipe_writer = None
             self._output_thread = None
 
-            # 无效化信号发射器作为最后一步
             try:
                 if hasattr(self, "_signal_emitter"):
                     self._signal_emitter.invalidate()
@@ -834,7 +774,6 @@ class UnifiedDownloadWorker(QThread):
                 self._logger.warning(
                     f"{self.platform} cleanup completed with errors: {error_summary}"
                 )
-                # 最后尝试发送警告消息，如果失败则忽略
                 try:
                     self._safe_emit(
                         "log",
@@ -847,7 +786,6 @@ class UnifiedDownloadWorker(QThread):
 
         except Exception as e:
             self._logger.exception(f"Critical error during {self.platform} cleanup")
-            # 最后尝试发送错误消息，如果失败则忽略
             try:
                 self._safe_emit("log", f"Critical {self.platform} cleanup error: {e!s}")
             except:
