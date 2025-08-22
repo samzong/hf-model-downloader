@@ -1,6 +1,6 @@
 """
 Backward compatibility wrapper for the original ModelScopeDownloadWorker
-This file is DEPRECATED. Please use UnifiedDownloadWorker from unified_downloader.py instead.
+This file is DEPRECATED. Please use UnifiedDownloadWorker from unified_downloader.pyq.
 """
 
 import warnings
@@ -18,7 +18,7 @@ class ModelScopeDownloadWorker(UnifiedDownloadWorker):
         self, model_id, save_path, token=None, endpoint=None, repo_type="model"
     ):
         warnings.warn(
-            "ModelScopeDownloadWorker is deprecated. Use UnifiedDownloadWorker('modelscope', ...) instead.",
+            "ModelScopeDownloadWorker is deprecated. Use UnifiedDownloadWorker",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -39,7 +39,7 @@ def download_modelscope_model(
     Use unified_download_model('modelscope', ...) instead.
     """
     warnings.warn(
-        "download_modelscope_model is deprecated. Use unified_download_model('modelscope', ...) instead.",
+        "download_modelscope_model is deprecated. Use unified_download_model.",
         DeprecationWarning,
         stacklevel=2,
     )

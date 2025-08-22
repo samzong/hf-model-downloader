@@ -132,9 +132,7 @@ class SafePipeWriter:
             lines = self.buffer.split("\n")
             self.buffer = lines[-1]
             for line in lines[:-1]:
-                if (
-                    line.strip() and line != self.last_progress
-                ):
+                if line.strip() and line != self.last_progress:
                     self.send(line)
         else:
             self.buffer += text
@@ -167,9 +165,7 @@ def download_huggingface(
         from huggingface_hub import HfFolder, snapshot_download
     except ImportError:
         if pipe:
-            pipe.send(
-                "Error: HuggingFace Hub library not installed. Please install with: pip install huggingface_hub"
-            )
+            pipe.send("Error: HuggingFace Hub library not installed.")
         return False
 
     if token:
@@ -232,9 +228,7 @@ def download_modelscope(
         from modelscope.hub.snapshot_download import snapshot_download
     except ImportError:
         if pipe:
-            pipe.send(
-                "Error: ModelScope library not installed. Please install with: uv add modelscope"
-            )
+            pipe.send("Error: ModelScope library not installed.")
         return False
 
     if token:
@@ -256,13 +250,9 @@ def download_modelscope(
     if pipe:
         pipe.send(f"Starting ModelScope download of {model_id}")
         if repo_type == "dataset":
-            pipe.send(
-                f"Downloading Dataset from https://www.modelscope.cn to directory: {repo_dir}"
-            )
+            pipe.send(f"Downloading Dataset to directory: {repo_dir}")
         else:
-            pipe.send(
-                f"Downloading Model from https://www.modelscope.cn to directory: {repo_dir}"
-            )
+            pipe.send(f"Downloading Model to directory: {repo_dir}")
 
     try:
         if repo_type == "dataset":
@@ -271,7 +261,7 @@ def download_modelscope(
 
             os.makedirs(repo_dir, exist_ok=True)
 
-            dataset = MsDataset.load(
+            MsDataset.load(
                 dataset_name=model_id,
                 cache_dir=repo_dir,
             )
@@ -320,7 +310,7 @@ def unified_download_model(
 ):
     """Unified download function that delegates to platform-specific implementations"""
     try:
-        config = PLATFORM_CONFIGS[platform]
+        PLATFORM_CONFIGS[platform]
 
         print(f"\n=== {platform.title()} Download Process Debug Info ===")
         print("Process ID:", os.getpid())
@@ -382,7 +372,7 @@ def unified_download_model(
             sys.stderr = old_stderr
             try:
                 pipe.send("DOWNLOAD_COMPLETE")
-            except:
+            except (BrokenPipeError, OSError, EOFError):
                 pass
 
 
@@ -450,7 +440,7 @@ class UnifiedDownloadWorker(QThread):
 
         if platform not in PLATFORM_CONFIGS:
             raise ValueError(
-                f"Unsupported platform: {platform}. Supported: {list(PLATFORM_CONFIGS.keys())}"
+                f"Unsupported platform, Only Supported: {list(PLATFORM_CONFIGS.keys())}"
             )
 
         self.platform = platform
@@ -489,9 +479,7 @@ class UnifiedDownloadWorker(QThread):
 
         self.repo_name = self.model_id.split("/")[-1]
         self.repo_dir = os.path.join(self.save_path, self.repo_name)
-        self._logger.debug(
-            f"Initialized {platform} worker for {repo_type} {model_id} with save path {save_path}"
-        )
+        self._logger.debug(f"Initialized {platform} worker for {repo_type}.")
 
         self._cancel_event = threading.Event()
         self._download_process = None
@@ -527,7 +515,7 @@ class UnifiedDownloadWorker(QThread):
             if pipe:
                 try:
                     pipe.send(f"Process wrapper error: {e!s}")
-                except:
+                except (BrokenPipeError, OSError, EOFError):
                     pass
             return False
 
@@ -567,7 +555,7 @@ class UnifiedDownloadWorker(QThread):
                     try:
                         self._download_process.kill()
                         time.sleep(0.1)
-                    except:
+                    except (OSError, ProcessLookupError):
                         pass
 
                 self._logger.debug(f"{self.platform} download process terminated")
@@ -600,11 +588,11 @@ class UnifiedDownloadWorker(QThread):
             repo_type_text = "model" if self.repo_type == "model" else "dataset"
             self._safe_emit(
                 "status",
-                f"Downloading {self.platform} {repo_type_text} repository to {self.repo_dir}...",
+                f"Downloading {self.platform} {repo_type_text} to {self.repo_dir}...",
             )
             self._safe_emit(
                 "log",
-                f"Starting {self.platform} download of {self.model_id} to {self.repo_dir}",
+                f"Starting {self.platform} download {self.model_id} to {self.repo_dir}",
             )
 
             self._pipe_reader, self._pipe_writer = multiprocessing.Pipe(duplex=False)
@@ -640,7 +628,7 @@ class UnifiedDownloadWorker(QThread):
                 download_completed = True
             else:
                 self._logger.debug(
-                    f"{self.platform} download process exited with code: {self._download_process.exitcode}"
+                    f"{self.platform} exit with code: {self._download_process.exitcode}"
                 )
 
             self._cancel_event.set()
@@ -652,7 +640,7 @@ class UnifiedDownloadWorker(QThread):
                 repo_type_text = "Model" if self.repo_type == "model" else "Dataset"
                 self._safe_emit(
                     "log",
-                    f"{self.platform} {repo_type_text} downloaded successfully to: {self.repo_dir}",
+                    f"{self.platform} {repo_type_text} downloaded to: {self.repo_dir}",
                 )
                 self._logger.debug(f"{self.platform} download completed successfully")
                 self._safe_emit("finished")
@@ -683,9 +671,7 @@ class UnifiedDownloadWorker(QThread):
         """Process pipe output in thread"""
         while not self._cancel_event.is_set():
             try:
-                if self._pipe_reader and self._pipe_reader.poll(
-                    0.01
-                ):
+                if self._pipe_reader and self._pipe_reader.poll(0.01):
                     try:
                         output = self._pipe_reader.recv()
                         if output == "DOWNLOAD_COMPLETE":
@@ -777,9 +763,9 @@ class UnifiedDownloadWorker(QThread):
                 try:
                     self._safe_emit(
                         "log",
-                        f"Warning: Some {self.platform} cleanup operations failed: {error_summary}",
+                        f"Warning: {self.platform} cleanup failed: {error_summary}",
                     )
-                except:
+                except (RuntimeError, AttributeError):
                     pass
             else:
                 self._logger.debug(f"{self.platform} cleanup completed successfully")
@@ -788,5 +774,5 @@ class UnifiedDownloadWorker(QThread):
             self._logger.exception(f"Critical error during {self.platform} cleanup")
             try:
                 self._safe_emit("log", f"Critical {self.platform} cleanup error: {e!s}")
-            except:
+            except (RuntimeError, AttributeError):
                 pass

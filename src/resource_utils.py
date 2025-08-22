@@ -1,5 +1,5 @@
 """
-Resource path utilities for handling assets in both development and packaged environments
+Resource path utilities for handling assets in both development and packaged.
 """
 
 import os
@@ -9,12 +9,12 @@ import sys
 def get_resource_path(relative_path):
     """
     Get the absolute path to a resource file.
-    
+
     Works in both development environment and PyInstaller packaged environment.
-    
+
     Args:
-        relative_path (str): Path relative to the application root (e.g., "assets/icon.png")
-        
+        relative_path (str): Path relative to root (e.g., "assets/icon.png")
+
     Returns:
         str: Absolute path to the resource file
     """
@@ -33,10 +33,10 @@ def get_resource_path(relative_path):
 def get_asset_path(filename):
     """
     Get the absolute path to an asset file in the assets directory.
-    
+
     Args:
         filename (str): Asset filename (e.g., "icon.png", "huggingface_logo.png")
-        
+
     Returns:
         str: Absolute path to the asset file
     """

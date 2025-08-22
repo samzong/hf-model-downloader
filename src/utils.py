@@ -13,7 +13,7 @@ def cleanup_lock_files(directory):
     """Clean up any .lock files in the directory and its subdirectories."""
     logger.info("Cleaning up lock files (keeping downloaded chunks for resume)...")
     try:
-        for root, dirs, files in os.walk(directory):
+        for root, _dirs, files in os.walk(directory):
             for file in files:
                 if file.endswith(".lock"):
                     lock_file = os.path.join(root, file)

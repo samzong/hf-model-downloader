@@ -242,7 +242,9 @@ class MainWindow(QMainWindow):
         github_btn = QPushButton("View on GitHub")
         github_btn.setFlat(True)
         github_btn.setStyleSheet(
-            "QPushButton { font-size: 12px; color: #666; border: none; text-decoration: underline; }"
+            "QPushButton { "
+            "font-size: 12px; color: #666; border: none; text-decoration: underline; "
+            "}"
         )
         github_btn.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl(GITHUB_REPO_URL))
@@ -252,7 +254,9 @@ class MainWindow(QMainWindow):
         author_btn = QPushButton(f"Created by {AUTHOR_NAME}")
         author_btn.setFlat(True)
         author_btn.setStyleSheet(
-            "QPushButton { font-size: 12px; color: #666; border: none; text-decoration: underline; }"
+            "QPushButton { "
+            "font-size: 12px; color: #666; border: none; text-decoration: underline; "
+            "}"
         )
         author_btn.clicked.connect(
             lambda: QDesktopServices.openUrl(QUrl(AUTHOR_GITHUB_URL))

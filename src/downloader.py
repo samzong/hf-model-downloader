@@ -1,6 +1,6 @@
 """
 Backward compatibility wrapper for the original DownloadWorker
-This file is DEPRECATED. Please use UnifiedDownloadWorker from unified_downloader.py instead.
+This file is DEPRECATED. Please use UnifiedDownloadWorker from unified_downloader.py
 """
 
 import warnings
@@ -18,7 +18,7 @@ class DownloadWorker(UnifiedDownloadWorker):
         self, model_id, save_path, token=None, endpoint=None, repo_type="model"
     ):
         warnings.warn(
-            "DownloadWorker is deprecated. Use UnifiedDownloadWorker('huggingface', ...) instead.",
+            "DownloadWorker is deprecated. Use UnifiedDownloadWorker",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -39,7 +39,7 @@ def download_model(
     Use unified_download_model('huggingface', ...) instead.
     """
     warnings.warn(
-        "download_model is deprecated. Use unified_download_model('huggingface', ...) instead.",
+        "download_model is deprecated. Use unified_download_model.",
         DeprecationWarning,
         stacklevel=2,
     )
