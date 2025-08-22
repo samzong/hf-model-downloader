@@ -34,7 +34,7 @@ class TestBasicE2E:
         """Test downloading a very small HuggingFace model"""
         worker = UnifiedDownloadWorker(
             platform="huggingface",
-            model_id="hf-internal-testing/tiny-random-bert",  # Extremely small test model
+            model_id="hf-internal-testing/tiny-random-bert",
             save_path=temp_dir,
             repo_type="model",
         )
@@ -130,7 +130,7 @@ class TestBasicE2E:
         """Test downloading ModelScope dataset (this is what we fixed)"""
         worker = UnifiedDownloadWorker(
             platform="modelscope",
-            model_id="modelscope/chinese-text-classification-dataset",  # Small test dataset
+            model_id="modelscope/chinese-text-classification-dataset",
             save_path=temp_dir,
             repo_type="dataset",  # KEY: Testing dataset type
         )
