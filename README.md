@@ -34,29 +34,50 @@ cd hf-model-downloader
 # Modern way (recommended)
 uv sync
 uv run main.py
-
-# Old way
-make install
-make dev
 ```
 
 ## Build
 
 ```bash
-# Simple build
+# Build the application
 make build
 
-# Full package with DMG (macOS)
-make package
+# Create DMG package (macOS only)
+make dmg
 
-# Just test the build works
-make test-build
+# Clean build artifacts
+make clean
 ```
 
-Or manually with PyInstaller:
+## Code Quality
+
 ```bash
-pip install pyinstaller
-pyinstaller --onedir --windowed main.py
+# Format code
+make format
+
+# Check code quality
+make lint
+
+# Auto-fix issues
+make lint-fix
+
+# Run format + lint + build
+make check
+```
+
+## Release
+
+```bash
+# Preview next version
+make release-dry-run
+
+# Create release (main branch only)
+make release
+```
+
+**See all available commands:**
+```bash
+make help
 ```
 
 ## License
