@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.0 (2025-08-22)
+
+### Features
+
+- **readme**: Add smart download button with OS detection and links
+  ([`475e894`](https://github.com/samzong/hf-model-downloader/commit/475e894f973474a8ff246807af6bb5a848c2cc54))
+
+
 ## v0.5.5 (2025-08-22)
 
 ### Bug Fixes
