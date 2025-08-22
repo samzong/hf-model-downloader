@@ -2,6 +2,39 @@
 
 <!-- version list -->
 
+## v0.5.4 (2025-08-22)
+
+### Chores
+
+- **downloader**: Update deprecation warnings and messages for unified downloader
+  ([`d0aeb67`](https://github.com/samzong/hf-model-downloader/commit/d0aeb676d3ce7bdbde8aafc0d9909aa8bbea8209))
+
+- **makefile**: Improve python command detection and clean release echoes
+  ([`f6704b4`](https://github.com/samzong/hf-model-downloader/commit/f6704b44739dbe3db4fd5748842b33952566e459))
+
+### Refactoring
+
+- **build**: Clean up build script and improve icon handling comments
+  ([`428aa4e`](https://github.com/samzong/hf-model-downloader/commit/428aa4e3edfb6b74b1f9dd110d8903b9f5d73f95))
+
+- **ci**: Streamline dependency installation and update python version to 3.13 in workflows
+  ([`b2d693b`](https://github.com/samzong/hf-model-downloader/commit/b2d693b437d6f72b8b892610c2427e85101f4ab2))
+
+- **icon-generator**: Remove deprecated icon_generator.py script and all related code
+  ([`d57bfa1`](https://github.com/samzong/hf-model-downloader/commit/d57bfa1d3c94b4816b482a3b81d19a1f8bbfdcac))
+
+- **makefile**: Simplify version detection and improve logging in build tasks
+  ([`9d2b76a`](https://github.com/samzong/hf-model-downloader/commit/9d2b76a4f572ae426e5b68e0dbde482e93f9f3f0))
+
+- **makefile**: Streamline dependency management and add linting targets
+  ([`d7f1237`](https://github.com/samzong/hf-model-downloader/commit/d7f1237933c88f3747f6327dc995d2a25de66e37))
+
+### Testing
+
+- **tests/test_e2e_basic**: Remove trailing comments from model_id arguments
+  ([`3eac90c`](https://github.com/samzong/hf-model-downloader/commit/3eac90c84e0e8b4a54c9d99c05c74bfb7ac9e008))
+
+
 ## v0.5.3 (2025-08-21)
 
 ### Chores
