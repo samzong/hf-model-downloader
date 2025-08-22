@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v0.6.1 (2025-08-22)
+
+### Bug Fixes
+
+- **website**: Add platform-specific download button for latest release
+  ([`807ee49`](https://github.com/samzong/hf-model-downloader/commit/807ee49e0b2d7f3300962499327026be7bc96c1e))
+
+
 ## v0.6.0 (2025-08-22)
 
 ### Features
