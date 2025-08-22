@@ -2,7 +2,7 @@
 
 # === Configuration Variables ===
 UV := uv
-PYTHON := uv run
+PYTHON := $(shell if command -v uv >/dev/null 2>&1; then echo "uv run"; else echo "python"; fi)
 APP_NAME := hf-model-downloader
 ARCH_NAME := $(shell uname -m)
 VERSION := $(shell grep '^version = ' pyproject.toml | cut -d'"' -f2)
@@ -97,12 +97,10 @@ dmg: build ## Create DMG package (macOS only)
 ##@ Release
 .PHONY: release-dry-run
 release-dry-run: ## Preview the next release version
-	@echo "Previewing next release version..."
 	@semantic-release version --print
 
 .PHONY: release
 release: ## Execute semantic release (main branch only)
-	@echo "Executing semantic release..."
 	@if [ "$$(git branch --show-current)" != "main" ]; then \
 		echo "❌ Release can only be executed on main branch" >&2; \
 		exit 1; \
