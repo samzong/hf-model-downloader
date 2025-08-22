@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v0.5.5 (2025-08-22)
+
+### Bug Fixes
+
+- **dependencies**: Remove cli extra from huggingface-hub in config and requirements
+  ([`7790e1c`](https://github.com/samzong/hf-model-downloader/commit/7790e1ca594d4e9da6d3d6d77a69572ab1e3623a))
+
+### Documentation
+
+- **build**: Update README with detailed make commands and cleanup release-guide.md removal
+  ([`a46417d`](https://github.com/samzong/hf-model-downloader/commit/a46417d3dbe1cc296b5362fdf432c7f32082f795))
+
+
 ## v0.5.4 (2025-08-22)
 
 ### Chores
