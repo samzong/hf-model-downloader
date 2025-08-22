@@ -35,7 +35,7 @@ def build_app():
 
     # Note: Icon generation is now a separate step in the Makefile
     # Please run `make icons` to generate icons before running this script
-    # Or directly use the `make build` command, which will automatically depend on the icons target
+    # Or directly use the `make build` command
 
     # Base PyInstaller command
     cmd = [
@@ -88,9 +88,6 @@ def build_app():
     # Check if icon exists
     if not os.path.exists(icon_path):
         print(f"Warning: Icon file not found: {icon_path}")
-        print(
-            "Please make sure you've run `make icons` to generate icon files, or place appropriate icon files in the assets directory:"
-        )
         print("- macOS: assets/icon.icns")
         print("- Windows: assets/icon.ico")
         print(
@@ -107,16 +104,13 @@ def build_app():
         # Run PyInstaller
         subprocess.run(cmd, check=True)
 
-        # Note: Icon fixing is now a separate step in the Makefile (make fix-icons)
-        # We no longer automatically fix icon issues here, but rely on the steps in the Makefile
-
         # Print build information
         output_path = os.path.join("dist", output_name)
         if os.path.exists(output_path):
             if os.path.isdir(output_path):
                 # Calculate directory size for onedir mode
                 total_size = 0
-                for dirpath, dirnames, filenames in os.walk(output_path):
+                for dirpath, _dirnames, filenames in os.walk(output_path):
                     for filename in filenames:
                         filepath = os.path.join(dirpath, filename)
                         total_size += os.path.getsize(filepath)
@@ -184,7 +178,7 @@ def create_windows_package(app_dir_name, arch):
 
         print(f"Creating zip package: {zip_name}")
         with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(app_dir_path):
+            for root, _dirs, files in os.walk(app_dir_path):
                 for file in files:
                     file_path = os.path.join(root, file)
                     # Create archive path relative to the app directory

@@ -1,4 +1,4 @@
-from dmgbuild import *
+# DMG build settings for dmgbuild
 
 format = "UDBZ"
 
