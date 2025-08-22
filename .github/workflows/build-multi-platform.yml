@@ -38,10 +38,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install python-semantic-release dmgbuild
-          pip install -r requirements.txt
+        run: make install
 
       - name: Build DMG (ARM64)
         run: |
@@ -81,10 +78,7 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install python-semantic-release dmgbuild
-          pip install -r requirements.txt
+        run: make install
 
       - name: Build DMG (x86_64)
         run: |
@@ -123,16 +117,17 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install dependencies
+      - name: Setup make for Windows
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pyinstaller
+          choco install make
+        
+      - name: Install dependencies
+        run: make install
 
       - name: Build Windows Executable
         run: |
           echo "Building for Windows..."
-          python build.py
+          make clean build
           echo "Build completed, checking output:"
           dir dist\
 
@@ -169,10 +164,6 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
 
-      - name: Wait for file availability
-        run: |
-          echo "Waiting for DMG files to be available..."
-          sleep 30
 
       - name: Verify Release Assets
         env:
