@@ -3,7 +3,6 @@ build/
 dist/
 *.spec
 .pyinstaller-cache/
-.build.lock
 
 # Python
 __pycache__/
@@ -17,4 +16,5 @@ venv/
 
 # OS specific
 .DS_Store
-Thumbs.db 
+Thumbs.db
+hf-model-downloader-windows-*.zip
