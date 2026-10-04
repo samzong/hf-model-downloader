@@ -46,22 +46,14 @@ jobs:
             <script>
             function downloadLatest() {
               const platform = navigator.platform.toLowerCase();
-              const userAgent = navigator.userAgent.toLowerCase();
               
               let downloadUrl = '';
               
               if (platform.includes('mac')) {
-                // macOS
-                if (userAgent.includes('arm') || userAgent.includes('apple')) {
-                  downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-arm64.dmg';
-                } else {
-                  downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-x86_64.dmg';
-                }
+                downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-arm64.dmg';
               } else if (platform.includes('win')) {
-                // Windows
                 downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-windows-x86_64.zip';
               } else {
-                // other
                 window.open('https://github.com/samzong/hf-model-downloader/releases/latest', '_blank');
                 return;
               }

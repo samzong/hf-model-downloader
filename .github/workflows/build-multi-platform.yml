@@ -1,22 +1,15 @@
 name: Build Multi-Platform
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: 'Release tag (e.g., v0.2.0)'
-        required: true
-        type: string
-      version:
-        description: 'Version without v prefix (e.g., 0.2.0)'
+        description: 'Draft release tag (e.g., v0.2.0)'
         required: true
         type: string
 
 permissions:
   contents: write
-  id-token: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -55,61 +48,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         run: |
-          echo "Uploading ARM64 DMG to release..."
-          
-          # Use release tag from event or workflow input
-          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
-          
-          echo "Using release tag: $RELEASE_TAG"
-          
-          gh release upload "$RELEASE_TAG" \
+          gh release upload "${{ inputs.release_tag }}" \
             dist/hf-model-downloader-arm64.dmg \
             --clobber
-          echo "ARM64 DMG uploaded successfully"
-
-  build-macos-x86:
-    runs-on: macos-13 # Intel Mac
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
-          python-version: "3.13"
-
-      - name: Install dependencies
-        run: make install
-
-      - name: Run smoke tests
-        run: make test
-
-      - name: Build DMG (x86_64)
-        run: |
-          echo "Building for x86_64 architecture..."
-          make clean build dmg
-          echo "Build completed, checking output:"
-          ls -la dist/
-
-      - name: Upload to Release
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
-        run: |
-          echo "Uploading x86_64 DMG to release..."
-          
-          # Use release tag from event or workflow input
-          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
-          
-          echo "Using release tag: $RELEASE_TAG"
-          
-          gh release upload "$RELEASE_TAG" \
-            dist/hf-model-downloader-x86_64.dmg \
-            --clobber
-          echo "x86_64 DMG uploaded successfully"
 
   build-windows:
     runs-on: windows-latest
@@ -148,86 +89,37 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         shell: bash
         run: |
-          echo "Uploading Windows package to release..."
-          
-          # Use release tag from event or workflow input
-          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
-          
-          echo "Using release tag: $RELEASE_TAG"
-          echo "Build artifacts:"
-          ls -la dist/ || true
-          ls -la *.zip *.exe 2>/dev/null || true
-          
-          # Upload the Windows package (zip file created by build process)
-          if [ -f "hf-model-downloader-windows-x86_64.zip" ]; then
-            echo "Uploading Windows package"
-            gh release upload "$RELEASE_TAG" "hf-model-downloader-windows-x86_64.zip" --clobber
-          else
-            echo "No Windows package found"
-            exit 1
-          fi
+          gh release upload "${{ inputs.release_tag }}" \
+            hf-model-downloader-windows-x86_64.zip \
+            --clobber
 
-  trigger-homebrew-update:
-    needs: [build-macos-arm64, build-macos-x86]
+  publish-release:
+    needs: [build-macos-arm64, build-windows]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
-
-
-      - name: Verify Release Assets
+      - name: Verify assets and publish draft release
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          echo "Checking release assets..."
-          
-          # Use release tag from event or workflow input
-          RELEASE_TAG="${{ github.event.release.tag_name || inputs.release_tag }}"
-          
-          echo "Using release tag: $RELEASE_TAG"
-          
-          gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name'
+          assets=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          for asset in hf-model-downloader-arm64.dmg hf-model-downloader-windows-x86_64.zip; do
+            if ! grep -qx "$asset" <<< "$assets"; then
+              echo "Missing release asset: $asset"
+              exit 1
+            fi
+          done
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
 
-          assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
-          if ! echo "$assets" | grep -q "hf-model-downloader-arm64.dmg"; then
-            echo "Error: ARM64 DMG not found in release"
-            exit 1
-          fi
-          if ! echo "$assets" | grep -q "hf-model-downloader-x86_64.dmg"; then
-            echo "Error: x86_64 DMG not found in release"
-            exit 1
-          fi
-          echo "All required DMG files are present"
-
-      - name: Update Homebrew Cask
+  notify-homebrew-tap:
+    needs: publish-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch tap package update
         env:
-          GH_PAT: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          echo "Starting Homebrew update process"
-          
-          # Debug: Check if GH_PAT is available
-          if [ -z "$GH_PAT" ]; then
-            echo "❌ Error: GH_PAT environment variable is empty"
-            echo "Available secrets priority: GH_PAT -> GH_TOKEN -> github.token"
-            exit 1
-          else
-            echo "✅ GH_PAT environment variable is set"
-          fi
-          
-          # Use version from workflow input or extract from release tag
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION="${{ inputs.version }}"
-            RELEASE_TAG="${{ inputs.release_tag }}"
-          else
-            RELEASE_TAG="${{ github.event.release.tag_name }}"
-            VERSION=${RELEASE_TAG#v}
-          fi
-          
-          export VERSION
-
-          echo "Version: $VERSION"
-          echo "Tag: $RELEASE_TAG"
-
-          make update-homebrew
+          gh api repos/samzong/homebrew-tap/dispatches \
+            -f event_type=homebrew-package-release \
+            -f "client_payload[package]=hf-model-downloader" \
+            -f "client_payload[version]=${{ inputs.release_tag }}"
