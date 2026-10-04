@@ -9,7 +9,6 @@ VERSION := $(shell grep '^version = ' pyproject.toml | cut -d'"' -f2)
 
 # Build directories
 DIST_DIR := dist
-SCRIPTS_DIR := scripts
 
 ##@ Basic
 .PHONY: help
@@ -100,23 +99,4 @@ dmg: install build ## Create DMG package (macOS only)
 release-dry-run: install ## Preview the next release version
 	@$(UV) run semantic-release version --print
 
-.PHONY: release
-release: install ## Execute semantic release (main branch only)
-	@if [ "$$(git branch --show-current)" != "main" ]; then \
-		echo "❌ Release can only be executed on main branch" >&2; \
-		exit 1; \
-	fi
-	@$(UV) run semantic-release version
-	@$(UV) run semantic-release publish
-
 .DEFAULT_GOAL := help
-
-# Add CI-only targets for GitHub Actions (not in help)
-.PHONY: update-homebrew verify-release
-update-homebrew:
-	@if [ -z "$(GH_PAT)" ]; then echo "❌ GH_PAT required" >&2; exit 1; fi
-	@export VERSION="$(VERSION)"; $(SCRIPTS_DIR)/homebrew-update.sh
-
-verify-release:
-	@curl -I "https://github.com/samzong/hf-model-downloader/releases/download/v$(VERSION)/$(APP_NAME)-arm64.dmg" 2>/dev/null | head -1 | grep -q "200 OK" && echo "✅ ARM64 DMG exists" || echo "⚠️ ARM64 DMG not found"
-	@curl -I "https://github.com/samzong/hf-model-downloader/releases/download/v$(VERSION)/$(APP_NAME)-x86_64.dmg" 2>/dev/null | head -1 | grep -q "200 OK" && echo "✅ x86_64 DMG exists" || echo "⚠️ x86_64 DMG not found"

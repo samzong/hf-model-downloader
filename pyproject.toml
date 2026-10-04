@@ -20,10 +20,6 @@ dependencies = [
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-build_command = "echo 'Build handled by separate multi-platform workflow'"
-upload_to_pypi = false
-upload_to_repository = false
-upload_to_release = false
 hvcs = "github"
 commit_message = "chore(release): v{version}"
 major_on_zero = false
@@ -37,18 +33,12 @@ patch_tags = ["fix", "perf", "docs", "style", "refactor", "test", "chore", "ci",
 [tool.semantic_release.remote.token]
 env = "GH_TOKEN"
 
-[tool.semantic_release.changelog]
-template_dir = "templates"
-
 [tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
 
 [tool.semantic_release.branches.main]
 match = "main"
 prerelease = false
-
-[tool.semantic_release.publish]
-dist_glob_patterns = ["dist/*.dmg"]
 
 [dependency-groups]
 dev = [

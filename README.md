@@ -26,7 +26,7 @@
 - Downloads Hugging Face and ModelScope models through a simple GUI
 - Handles authentication tokens
 - Shows download progress
-- Works on Windows, macOS, Linux
+- Works on Windows and macOS (Apple Silicon)
 - Creates standalone apps you can just run
 
 ## Just want to use it?
@@ -71,12 +71,10 @@ make check       # format + lint + test + build
 
 ## Release
 
-```bash
-# Preview next version
-make release-dry-run
+Merging to `main` cuts the release automatically: the tag is pushed with a draft GitHub release, which is published only after every platform asset is uploaded.
 
-# Create release (main branch only)
-make release
+```bash
+make release-dry-run  # preview the next version
 ```
 
 **See all available commands:**

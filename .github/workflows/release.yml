@@ -2,7 +2,6 @@ name: Semantic Release
 
 permissions:
   contents: write
-  id-token: write
 
 on:
   push:
@@ -18,7 +17,6 @@ jobs:
     runs-on: macos-latest
     outputs:
       released: ${{ steps.release.outputs.released }}
-      version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
     
     steps:
@@ -49,40 +47,23 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
-          echo "Starting semantic release process"
-          
-          # Store the current commit SHA before release
           BEFORE_SHA=$(git rev-parse HEAD)
-          echo "Commit SHA before release: $BEFORE_SHA"
-          
-          # Check what version would be released
-          echo "Checking next version..."
           NEXT_VERSION=$(uv run semantic-release version --print)
-          echo "Next version would be: $NEXT_VERSION"
-          
-          # Execute the actual release (this includes version bump, build, and publish)
-          echo "Executing semantic-release version..."
-          uv run semantic-release version
-          RELEASE_EXIT_CODE=$?
-          echo "semantic-release version exit code: $RELEASE_EXIT_CODE"
-          
-          # Check if version step created new commits (indicating a release was made)
-          AFTER_SHA=$(git rev-parse HEAD)
-          echo "Commit SHA after release: $AFTER_SHA"
-          
-          if [ "$BEFORE_SHA" != "$AFTER_SHA" ] && [ $RELEASE_EXIT_CODE -eq 0 ]; then
-            echo "New version was created, proceeding with publish"
-            uv run semantic-release publish
-            echo "released=true" >> $GITHUB_OUTPUT
-            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-            echo "tag=v$NEXT_VERSION" >> $GITHUB_OUTPUT
-            echo "Release v$NEXT_VERSION created successfully"
+          uv run semantic-release version --no-vcs-release
+
+          if [ "$BEFORE_SHA" != "$(git rev-parse HEAD)" ]; then
+            awk '/^## v/{n++} n==1' CHANGELOG.md > release-notes.md
+            gh release create "v$NEXT_VERSION" \
+              --draft \
+              --verify-tag \
+              --title "v$NEXT_VERSION" \
+              --notes-file release-notes.md
+            {
+              echo "released=true"
+              echo "tag=v$NEXT_VERSION"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "No new release was created (version $NEXT_VERSION already exists)"
-            echo "released=false" >> $GITHUB_OUTPUT
-            echo "version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-            echo "tag=" >> $GITHUB_OUTPUT
-            echo "Skipping publish step - no new release needed"
+            echo "released=false" >> "$GITHUB_OUTPUT"
           fi
 
   trigger-build:
@@ -94,9 +75,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          echo "Triggering multi-platform build for release ${{ needs.release.outputs.tag }}"
           gh workflow run build-multi-platform.yml \
             --repo samzong/hf-model-downloader \
-            --field release_tag="${{ needs.release.outputs.tag }}" \
-            --field version="${{ needs.release.outputs.version }}"
-          echo "Multi-platform build workflow triggered successfully"
+            --ref "${{ needs.release.outputs.tag }}" \
+            --field release_tag="${{ needs.release.outputs.tag }}"
