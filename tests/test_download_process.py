@@ -17,10 +17,12 @@ def test_unsupported_platform_exits_nonzero():
     try:
         process.start()
         writer.close()
-        while reader.poll(15):
+        while True:
             try:
+                if not reader.poll(15):
+                    break
                 messages.append(reader.recv())
-            except EOFError:
+            except (EOFError, OSError):
                 break
         process.join(timeout=15)
         assert process.exitcode not in (0, None)
