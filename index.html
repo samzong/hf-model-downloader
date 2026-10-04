@@ -54,7 +54,7 @@
           <li>Downloads Hugging Face and ModelScope models through a simple GUI</li>
           <li>Handles authentication tokens</li>
           <li>Shows download progress</li>
-          <li>Works on Windows, macOS, Linux</li>
+          <li>Works on Windows and macOS (Apple Silicon)</li>
           <li>Creates standalone apps you can just run</li>
         </ul>
         <h2 id="just-want-to-use-it"><a aria-hidden="true" tabindex="-1" href="#just-want-to-use-it" class="anchor"><span class="icon icon-link"></span></a>Just want to use it?</h2>
@@ -105,16 +105,9 @@ make test-e2e    # full download tests (network required)
 make check       # format + lint + test + build
 "><div onclick="copied(this)" class="copied"><svg class="octicon-copy" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" height="12" width="12"><path fill-rule="evenodd" d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"></path><path fill-rule="evenodd" d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"></path></svg><svg class="octicon-check" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" height="12" width="12"><path fill-rule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"></path></svg></div></pre>
         <h2 id="release"><a aria-hidden="true" tabindex="-1" href="#release" class="anchor"><span class="icon icon-link"></span></a>Release</h2>
-        <pre class="language-bash"><code class="language-bash code-highlight"><span class="code-line line-number" line="1"><span class="token comment"># Preview next version</span>
-</span><span class="code-line line-number" line="2"><span class="token function">make</span> release-dry-run
-</span><span class="code-line line-number" line="3">
-</span><span class="code-line line-number" line="4"><span class="token comment"># Create release (main branch only)</span>
-</span><span class="code-line line-number" line="5"><span class="token function">make</span> release
-</span></code><input type="hidden" value="# Preview next version
-make release-dry-run
-
-# Create release (main branch only)
-make release
+        <p>Merging to <code>main</code> cuts the release automatically: the tag is pushed with a draft GitHub release, which is published only after every platform asset is uploaded.</p>
+        <pre class="language-bash"><code class="language-bash code-highlight"><span class="code-line line-number" line="1"><span class="token function">make</span> release-dry-run  <span class="token comment"># preview the next version</span>
+</span></code><input type="hidden" value="make release-dry-run  # preview the next version
 "><div onclick="copied(this)" class="copied"><svg class="octicon-copy" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" height="12" width="12"><path fill-rule="evenodd" d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z"></path><path fill-rule="evenodd" d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z"></path></svg><svg class="octicon-check" aria-hidden="true" viewBox="0 0 16 16" fill="currentColor" height="12" width="12"><path fill-rule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"></path></svg></div></pre>
         <p><strong>See all available commands:</strong></p>
         <pre class="language-bash"><code class="language-bash code-highlight"><span class="code-line line-number" line="1"><span class="token function">make</span> <span class="token builtin class-name">help</span>
@@ -129,22 +122,14 @@ make release
       <script>
 function downloadLatest() {
   const platform = navigator.platform.toLowerCase();
-  const userAgent = navigator.userAgent.toLowerCase();
   
   let downloadUrl = '';
   
   if (platform.includes('mac')) {
-    // macOS
-    if (userAgent.includes('arm') || userAgent.includes('apple')) {
-      downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-arm64.dmg';
-    } else {
-      downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-x86_64.dmg';
-    }
+    downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-arm64.dmg';
   } else if (platform.includes('win')) {
-    // Windows
     downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-windows-x86_64.zip';
   } else {
-    // other
     window.open('https://github.com/samzong/hf-model-downloader/releases/latest', '_blank');
     return;
   }
