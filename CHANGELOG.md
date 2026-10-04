@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.6.3 (2026-10-04)
+
+### Bug Fixes
+
+- **release**: Publish releases only after all assets upload
+  ([#12](https://github.com/samzong/hf-model-downloader/pull/12),
+  [`8168625`](https://github.com/samzong/hf-model-downloader/commit/81686253ee25d2801f929514a972877aba1e67ec))
+
+
 ## v0.6.2 (2026-07-07)
 
 ### Bug Fixes
