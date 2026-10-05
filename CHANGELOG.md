@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.6.5 (2026-10-05)
+
+### Continuous Integration
+
+- **release**: Keep uv.lock in sync with released version
+  ([#14](https://github.com/samzong/hf-model-downloader/pull/14),
+  [`b6b81a2`](https://github.com/samzong/hf-model-downloader/commit/b6b81a29c324a27dac606abfce7176e05d9c82df))
+
+
 ## v0.6.4 (2026-10-05)
 
 ### Bug Fixes
