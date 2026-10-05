@@ -1,5 +1,4 @@
 import os
-import platform
 
 from PyQt6.QtCore import QSize, Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QIcon
@@ -18,9 +17,25 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from .hf_hub_env import resolve_hf_endpoint
 from .resource_utils import get_asset_path
 from .unified_downloader import UnifiedDownloadWorker
+
+PLATFORM_LINKS = {
+    0: {
+        "platform": "huggingface",
+        "endpoint": "https://hf-mirror.com",
+        "models": "https://huggingface.co/models",
+        "datasets": "https://huggingface.co/datasets",
+        "token": "https://huggingface.co/settings/tokens",
+    },
+    1: {
+        "platform": "modelscope",
+        "endpoint": "https://modelscope.cn",
+        "models": "https://modelscope.cn/models",
+        "datasets": "https://modelscope.cn/datasets",
+        "token": "https://modelscope.cn/my/myaccesstoken",
+    },
+}
 
 GITHUB_REPO_URL = "https://github.com/samzong/hf-model-downloader"
 AUTHOR_NAME = "samzong"
@@ -32,19 +47,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("HF Model Downloader")
 
-        # Set window icon based on platform
-        system = platform.system().lower()
-        if system == "darwin":
-            icon_path = get_asset_path("icon.icns")
-        elif system == "windows":
-            icon_path = get_asset_path("icon.ico")
-        else:
-            icon_path = get_asset_path("icon.png")
-
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-
-        main_widget = QWidget()
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         layout = QVBoxLayout(main_widget)
@@ -164,12 +166,6 @@ class MainWindow(QMainWindow):
         separator.setFrameShadow(QFrame.Shadow.Sunken)
         layout.addWidget(separator)
 
-        self.platform_combo = QComboBox()
-        self.platform_combo.addItems(["Hugging Face", "ModelScope"])
-        self.platform_combo.setCurrentText("Hugging Face")
-        self.platform_combo.currentTextChanged.connect(self.on_platform_changed)
-        self.platform_combo.hide()
-
         type_layout = QHBoxLayout()
         type_label = QLabel("Type:")
         self.type_combo = QComboBox()
@@ -268,83 +264,35 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(footer_frame)
 
-        self._set_dynamic_minimum_height()
+        self.setMinimumSize(800, 660)
 
         self.download_worker = None
-
-    def _set_dynamic_minimum_height(self):
-        platform_icons_height = 40
-        help_section_height = 200
-        form_fields_height = 200
-        buttons_height = 40
-        log_minimum_height = 100
-        footer_height = 40
-        margins_spacing = 40
-
-        total_height = (
-            platform_icons_height
-            + help_section_height
-            + form_fields_height
-            + buttons_height
-            + log_minimum_height
-            + footer_height
-            + margins_spacing
-        )
-
-        self.setMinimumHeight(total_height)
-        self.setMinimumWidth(800)
+        self._closing = False
 
     def closeEvent(self, event):
-        if self.download_worker and self.download_worker.isRunning():
-            self.download_worker.finished.disconnect()
-            self.download_worker.error.disconnect()
-            self.download_worker.status.disconnect()
-            self.download_worker.log.disconnect()
-
-            self.download_worker.cancel_download()
-            if not self.download_worker.wait(5000):
-                self.download_worker.terminate()
-                self.download_worker.wait()
+        if self.download_worker is not None:
+            self._closing = True
+            self.stop_download()
+            event.ignore()
+            return
         event.accept()
 
+    def platform_config(self):
+        return PLATFORM_LINKS[self.platform_button_group.checkedId()]
+
     def on_platform_icon_changed(self, button_id):
-        if button_id == 0:
-            platform_text = "Hugging Face"
-        else:
-            platform_text = "ModelScope"
-
-        self.platform_combo.setCurrentText(platform_text)
-
-    def on_platform_changed(self, platform_text):
-        if platform_text == "ModelScope":
-            self.endpoint_input.setText("https://modelscope.cn")
-        else:
-            self.endpoint_input.setText("https://hf-mirror.com")
+        self.endpoint_input.setText(PLATFORM_LINKS[button_id]["endpoint"])
 
     def open_models_page(self):
-        """Open the models page for the current platform"""
-        platform = self.platform_combo.currentText()
-        if platform == "ModelScope":
-            QDesktopServices.openUrl(QUrl("https://modelscope.cn/models"))
-        else:
-            QDesktopServices.openUrl(QUrl("https://huggingface.co/models"))
+        QDesktopServices.openUrl(QUrl(self.platform_config()["models"]))
 
     def open_datasets_page(self):
-        platform = self.platform_combo.currentText()
-        if platform == "ModelScope":
-            QDesktopServices.openUrl(QUrl("https://modelscope.cn/datasets"))
-        else:
-            QDesktopServices.openUrl(QUrl("https://huggingface.co/datasets"))
+        QDesktopServices.openUrl(QUrl(self.platform_config()["datasets"]))
 
     def open_token_page(self):
-        platform = self.platform_combo.currentText()
-        if platform == "ModelScope":
-            QDesktopServices.openUrl(QUrl("https://modelscope.cn/my/myaccesstoken"))
-        else:
-            QDesktopServices.openUrl(QUrl("https://huggingface.co/settings/tokens"))
+        QDesktopServices.openUrl(QUrl(self.platform_config()["token"]))
 
     def on_type_changed(self, type_text):
-        # platform = self.platform_combo.currentText()
         if type_text == "Dataset":
             self.repo_label.setText("Dataset ID:")
             self.repo_input.setPlaceholderText("e.g., baicai003/Llama3-Chinese-dataset")
@@ -358,18 +306,15 @@ class MainWindow(QMainWindow):
             self.path_input.setText(path)
 
     def start_download(self):
+        if self.download_worker is not None:
+            return
         repo_id = self.repo_input.text().strip()
         save_path = self.path_input.text().strip()
         token = self.token_input.text().strip() or None
         repo_type = self.type_combo.currentText().lower()
-        platform = self.platform_combo.currentText()
+        config = self.platform_config()
 
-        endpoint = self.endpoint_input.text().strip()
-        if not endpoint:
-            if platform == "ModelScope":
-                endpoint = "https://modelscope.cn"
-            else:
-                endpoint = resolve_hf_endpoint(None)
+        endpoint = self.endpoint_input.text().strip() or config["endpoint"]
 
         if not repo_id:
             repo_type_text = "model ID" if repo_type == "model" else "dataset ID"
@@ -388,17 +333,14 @@ class MainWindow(QMainWindow):
         self.update_status("Initializing download...")
         self.log_text.clear()
 
-        if platform == "ModelScope":
-            self.download_worker = UnifiedDownloadWorker(
-                "modelscope", repo_id, save_path, token, endpoint, repo_type
-            )
-        else:
-            self.download_worker = UnifiedDownloadWorker(
-                "huggingface", repo_id, save_path, token, endpoint, repo_type
-            )
-
-        self.download_worker.finished.connect(
+        self.download_worker = UnifiedDownloadWorker(
+            config["platform"], repo_id, save_path, token, endpoint, repo_type
+        )
+        self.download_worker.succeeded.connect(
             self.download_finished, Qt.ConnectionType.QueuedConnection
+        )
+        self.download_worker.stopped.connect(
+            self.download_stopped, Qt.ConnectionType.QueuedConnection
         )
         self.download_worker.error.connect(
             self.download_error, Qt.ConnectionType.QueuedConnection
@@ -421,7 +363,6 @@ class MainWindow(QMainWindow):
             self.stop_button.setStyleSheet("")
             self.update_status("Stopping download...")
             self.download_worker.cancel_download()
-            self.download_button.setEnabled(True)
 
     def update_status(self, message, error=False):
         if error:
@@ -439,28 +380,21 @@ class MainWindow(QMainWindow):
         )
 
     def download_finished(self):
-        self.download_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
-        self.stop_button.setStyleSheet("")
-        self.update_status("✅ Download completed successfully!")
-        self.log_text.append("✅ Download completed successfully!")
+        self.update_log("✅ Download completed successfully!")
+
+    def download_stopped(self):
+        self.update_log("⏹️ Download stopped by user")
 
     def download_error(self, error_msg):
+        self.update_status(f"Error: {error_msg}", error=True)
+
+    def _on_worker_finished(self):
+        worker = self.download_worker
+        worker.wait()
+        self.download_worker = None
+        worker.deleteLater()
         self.download_button.setEnabled(True)
         self.stop_button.setEnabled(False)
         self.stop_button.setStyleSheet("")
-        if "cancelled by user" in error_msg.lower():
-            self.update_status("⏹️ Download stopped by user")
-            self.log_text.append("⏹️ Download stopped by user")
-        else:
-            self.update_status(f"❌ Error: {error_msg}", error=True)
-            self.log_text.append(f"❌ Error: {error_msg}")
-
-    def _on_worker_finished(self):
-        if hasattr(self, "download_worker") and self.download_worker:
-            # Wait for thread to fully stop before cleanup
-            if self.download_worker.isRunning():
-                self.download_worker.wait(5000)  # Wait up to 3 seconds
-
-            # Clear the worker reference
-            self.download_worker = None
+        if self._closing:
+            self.close()

@@ -1,6 +1,6 @@
 # Basic Ruff configuration
 line-length = 88
-target-version = "py38"
+target-version = "py313"
 
 # Exclude common directories
 exclude = [

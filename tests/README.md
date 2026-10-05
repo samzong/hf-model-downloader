@@ -1,48 +1,32 @@
-# E2E Tests for HF Model Downloader
+# Download Tests
 
-## 运行测试
+Run the offline suite:
 
-### 运行所有测试
 ```bash
-uv run pytest
+uv run pytest -m "not network and not slow"
 ```
 
-### 运行特定测试
+Run the Makefile smoke set:
+
 ```bash
-# 运行 HuggingFace 下载测试
-uv run pytest tests/test_e2e_basic.py::TestBasicE2E::test_huggingface_tiny_model -v -s
-
-# 运行取消下载测试
-uv run pytest tests/test_e2e_basic.py::TestBasicE2E::test_cancel_download -v -s
-
-# 运行 ModelScope 测试（可能需要认证）
-uv run pytest tests/test_e2e_basic.py::TestBasicE2E::test_modelscope_model -v -s
+make test
 ```
 
-### 查看详细输出
+Run real downloads into a temporary directory:
+
 ```bash
-uv run pytest -v -s
+QT_QPA_PLATFORM=offscreen uv run pytest tests/test_e2e_basic.py -v -s
 ```
 
-## 测试说明
+Network tests are marked `network` and `slow`. They fail on download errors;
+private-repository access failures are not treated as successful acceptance.
 
-### ✅ 工作的测试
-- `test_huggingface_tiny_model`: 下载极小的 HuggingFace 模型
-- `test_cancel_download`: 测试取消下载功能
+The Hugging Face model test uses the default `hf-mirror.com` endpoint and checks
+weights, ONNX files, and `.gitattributes`. ModelScope tests use
+`iic/nlp_structbert_sentence-similarity_chinese-tiny` and `swift/self-cognition`,
+and check weights and raw dataset files in the repository directory.
 
-### ⚠️ 可能跳过的测试
-- `test_modelscope_model`: ModelScope 模型下载（可能需要认证）
-- `test_modelscope_dataset`: ModelScope 数据集下载（这是我们修复的功能）
-
-### 🔧 已修复的问题
-- ModelScope 下载函数现在正确传递 `repo_type` 参数
-- 支持下载 ModelScope 数据集（不仅仅是模型）
-
-## 测试文件
-- `test_e2e_basic.py`: 基础端到端测试
-- `pytest.ini`: pytest 配置文件
-
-## 注意事项
-- 测试使用真实网络下载
-- 选择了极小的模型/数据集以确保测试速度
-- ModelScope 测试可能会因为需要认证而跳过
+`test_worker_lifecycle.py` uses local HTTP servers to verify cancellation during
+stalled validation, preservation of child errors, repository-type hints in the
+UI, and release of the worker only after the thread finishes. These tests do not
+access external services.

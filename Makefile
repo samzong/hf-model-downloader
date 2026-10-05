@@ -44,7 +44,7 @@ lint-fix: install ## Auto-fix code issues where possible
 
 test: install ## Run tests (fast smoke tests by default)
 	@echo "Running tests..."
-	@$(UV) run pytest tests/test_hf_xet.py tests/test_hf_hub_env.py tests/test_hf_repo_type.py tests/test_download_process.py -v
+	@$(UV) run pytest tests/test_hf_xet.py tests/test_hf_hub_env.py tests/test_hf_repo_type.py tests/test_download_process.py tests/test_worker_lifecycle.py -v
 
 test-e2e: install ## Run full end-to-end download tests (network required)
 	@echo "Running end-to-end tests..."
