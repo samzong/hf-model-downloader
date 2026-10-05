@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v0.6.4 (2026-10-05)
+
+### Bug Fixes
+
+- **download**: Surface real errors, stop cleanly, and remove dead code
+  ([#13](https://github.com/samzong/hf-model-downloader/pull/13),
+  [`7da381d`](https://github.com/samzong/hf-model-downloader/commit/7da381d638350363805cc29bd93a0fafffafa746))
+
+
 ## v0.6.3 (2026-10-04)
 
 ### Bug Fixes
