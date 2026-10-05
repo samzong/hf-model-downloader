@@ -16,6 +16,7 @@ dependencies = [
 version_toml = ["pyproject.toml:project.version"]
 hvcs = "github"
 commit_message = "chore(release): v{version}"
+build_command = "uv lock && git add uv.lock"
 major_on_zero = false
 allow_zero_version = true
 

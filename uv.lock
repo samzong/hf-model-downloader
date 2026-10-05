@@ -229,7 +229,7 @@ wheels = [
 
 [[package]]
 name = "hf-model-downloader"
-version = "0.6.3"
+version = "0.6.4"
 source = { virtual = "." }
 dependencies = [
     { name = "huggingface-hub", extra = ["hf-xet"] },
