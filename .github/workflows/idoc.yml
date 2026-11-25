@@ -44,21 +44,13 @@ jobs:
           footer: |
             Copyright © {{idocYear}} <a href="https://github.com/samzong" target="_blank">samzong</a><br />
             <script>
-            async function downloadLatest() {
+            function downloadLatest() {
               const platform = navigator.platform.toLowerCase();
               
               let downloadUrl = '';
               
               if (platform.includes('mac')) {
-                try {
-                  const response = await fetch('https://api.github.com/repos/samzong/hf-model-downloader/releases/latest');
-                  if (!response.ok) throw new Error('Release request failed');
-                  const release = await response.json();
-                  const asset = release.assets.find(item => /^hf-model-downloader-(?:[0-9]+\.[0-9]+\.[0-9]+-)?arm64\.dmg$/.test(item.name));
-                  downloadUrl = asset ? asset.browser_download_url : release.html_url;
-                } catch {
-                  downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest';
-                }
+                downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-arm64.dmg';
               } else if (platform.includes('win')) {
                 downloadUrl = 'https://github.com/samzong/hf-model-downloader/releases/latest/download/hf-model-downloader-windows-x86_64.zip';
               } else {
