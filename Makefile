@@ -5,7 +5,7 @@ UV := uv
 PYTHON := $(UV) run
 APP_NAME := hf-model-downloader
 ARCH_NAME := $(shell uname -m)
-VERSION := $(shell grep '^version = ' pyproject.toml | cut -d'"' -f2)
+VERSION := $(shell $(UV) run --no-project python scripts/check-release-tag.py)
 
 # Build directories
 DIST_DIR := dist
@@ -44,7 +44,7 @@ lint-fix: install ## Auto-fix code issues where possible
 
 test: install ## Run tests (fast smoke tests by default)
 	@echo "Running tests..."
-	@$(UV) run pytest tests/test_hf_xet.py tests/test_hf_hub_env.py tests/test_hf_repo_type.py tests/test_download_process.py tests/test_worker_lifecycle.py -v
+	@$(UV) run pytest tests/test_hf_xet.py tests/test_hf_hub_env.py tests/test_hf_repo_type.py tests/test_download_process.py tests/test_worker_lifecycle.py tests/test_release_contract.py -v
 
 test-e2e: install ## Run full end-to-end download tests (network required)
 	@echo "Running end-to-end tests..."
@@ -88,11 +88,11 @@ dmg: install build ## Create DMG package (macOS only)
 			echo "Processing $$app_dir..."; \
 			mv "$$app_dir" "HF Model Downloader.app"; \
 			cp ../dmg_settings.py settings.py; \
-			$(UV) run dmgbuild -s settings.py "HF Model Downloader" "$(APP_NAME)-$(ARCH_NAME).dmg"; \
+			$(UV) run dmgbuild -s settings.py "HF Model Downloader" "$(APP_NAME)-$(VERSION)-$(ARCH_NAME).dmg"; \
 			break; \
 		fi; \
 	done
-	@echo "✅ DMG created: $(DIST_DIR)/$(APP_NAME)-$(ARCH_NAME).dmg"
+	@echo "✅ DMG created: $(DIST_DIR)/$(APP_NAME)-$(VERSION)-$(ARCH_NAME).dmg"
 
 ##@ Release
 .PHONY: release-dry-run

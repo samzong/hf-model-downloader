@@ -71,7 +71,13 @@ make check       # format + lint + test + build
 
 ## Release
 
-Merging to `main` cuts the release automatically: the tag is pushed with a draft GitHub release, which is published only after every platform asset is uploaded.
+On `main`, `feat`, `fix`, `perf`, and breaking changes trigger automatic releases. Other commit types do not trigger a release.
+
+The `alpha`, `beta`, and `rc` branches produce prereleases with matching stages. Tags use `vX.Y.Z` or `vX.Y.Z-alpha.N`, `-beta.N`, or `-rc.N`. Python metadata uses `X.Y.Z`, `X.Y.ZaN`, `X.Y.ZbN`, or `X.Y.ZrcN`.
+
+The release workflow checks the version before it creates a release commit. The build workflow checks the tag and version before it builds artifacts. It publishes the draft only after both platform assets exist. Prereleases do not update the latest release or notify the stable Homebrew tap.
+
+Run `make dmg` on macOS to create `dist/hf-model-downloader-{version}-{arch}.dmg`. The version comes from `pyproject.toml` and uses the tag format without `v`.
 
 ```bash
 make release-dry-run  # preview the next version

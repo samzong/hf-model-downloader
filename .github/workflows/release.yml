@@ -5,7 +5,7 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    branches: [main, alpha, beta, rc]
   workflow_dispatch:
 
 concurrency:
@@ -32,6 +32,9 @@ jobs:
           enable-cache: true
           python-version: '3.13'
       
+      - name: Verify SemVer mapping and PEP 440 pyproject.toml version
+        run: uv run --no-project python scripts/check-release-tag.py
+
       - name: Install dependencies
         run: make install
       
@@ -48,19 +51,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
         run: |
           BEFORE_SHA=$(git rev-parse HEAD)
-          NEXT_VERSION=$(uv run semantic-release version --print)
+          NEXT_TAG=$(uv run semantic-release version --print-tag)
           uv run semantic-release version --no-vcs-release
 
           if [ "$BEFORE_SHA" != "$(git rev-parse HEAD)" ]; then
+            uv run --no-project python scripts/check-release-tag.py "$NEXT_TAG" --check-ref
+            args=(--draft --verify-tag)
+            if [[ "$NEXT_TAG" == *-* ]]; then
+              args+=(--prerelease --latest=false)
+            fi
             awk '/^## v/{n++} n==1' CHANGELOG.md > release-notes.md
-            gh release create "v$NEXT_VERSION" \
-              --draft \
-              --verify-tag \
-              --title "v$NEXT_VERSION" \
+            test -s release-notes.md
+            gh release create "$NEXT_TAG" \
+              "${args[@]}" \
+              --title "$NEXT_TAG" \
               --notes-file release-notes.md
             {
               echo "released=true"
-              echo "tag=v$NEXT_VERSION"
+              echo "tag=$NEXT_TAG"
             } >> "$GITHUB_OUTPUT"
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
@@ -74,8 +82,9 @@ jobs:
       - name: Trigger Multi-Platform Build
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
         run: |
           gh workflow run build-multi-platform.yml \
             --repo samzong/hf-model-downloader \
-            --ref "${{ needs.release.outputs.tag }}" \
-            --field release_tag="${{ needs.release.outputs.tag }}"
+            --ref "$RELEASE_TAG" \
+            --field release_tag="$RELEASE_TAG"
