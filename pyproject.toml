@@ -16,14 +16,14 @@ dependencies = [
 version_toml = ["pyproject.toml:project.version"]
 hvcs = "github"
 commit_message = "chore(release): v{version}"
-build_command = "uv lock && git add uv.lock"
+build_command = 'uv run --no-project python scripts/check-release-tag.py "v$NEW_VERSION" --prepare && uv lock && git add uv.lock'
 major_on_zero = false
 allow_zero_version = true
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "chore", "ci", "build"]
 minor_tags = ["feat"]
-patch_tags = ["fix", "perf", "docs", "style", "refactor", "test", "chore", "ci", "build"]
+patch_tags = ["fix", "perf"]
 
 [tool.semantic_release.remote.token]
 env = "GH_TOKEN"
@@ -32,8 +32,24 @@ env = "GH_TOKEN"
 changelog_file = "CHANGELOG.md"
 
 [tool.semantic_release.branches.main]
-match = "main"
+match = "^main$"
 prerelease = false
+prerelease_token = "rc"
+
+[tool.semantic_release.branches.alpha]
+match = "^alpha$"
+prerelease = true
+prerelease_token = "alpha"
+
+[tool.semantic_release.branches.beta]
+match = "^beta$"
+prerelease = true
+prerelease_token = "beta"
+
+[tool.semantic_release.branches.rc]
+match = "^rc$"
+prerelease = true
+prerelease_token = "rc"
 
 [dependency-groups]
 dev = [

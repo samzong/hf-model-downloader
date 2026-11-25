@@ -15,13 +15,42 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  RELEASE_TAG: ${{ inputs.release_tag }}
+
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
+      sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Verify SemVer tag and PEP 440 pyproject.toml version
+        id: meta
+        run: |
+          uv run --no-project python scripts/check-release-tag.py "$RELEASE_TAG" --check-ref
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
   build-macos-arm64:
-    runs-on: macos-latest # ARM64
+    needs: verify
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.verify.outputs.sha }}
           fetch-depth: 0
           token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
 
@@ -38,26 +67,32 @@ jobs:
         run: make test
 
       - name: Build DMG (ARM64)
+        env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
         run: |
           echo "Building for ARM64 architecture..."
-          make clean build dmg
+          make dmg VERSION="$RELEASE_VERSION"
+          hdiutil verify "dist/hf-model-downloader-$RELEASE_VERSION-arm64.dmg"
           echo "Build completed, checking output:"
           ls -la dist/
 
       - name: Upload to Release
         env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         run: |
-          gh release upload "${{ inputs.release_tag }}" \
-            dist/hf-model-downloader-arm64.dmg \
+          gh release upload "$RELEASE_TAG" \
+            "dist/hf-model-downloader-$RELEASE_VERSION-arm64.dmg" \
             --clobber
 
   build-windows:
+    needs: verify
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.verify.outputs.sha }}
           fetch-depth: 0
           token: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
 
@@ -86,33 +121,42 @@ jobs:
 
       - name: Upload to Release
         env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         shell: bash
         run: |
-          gh release upload "${{ inputs.release_tag }}" \
+          gh release upload "$RELEASE_TAG" \
             hf-model-downloader-windows-x86_64.zip \
             --clobber
 
   publish-release:
-    needs: [build-macos-arm64, build-windows]
+    needs: [verify, build-macos-arm64, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Verify assets and publish draft release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+          IS_PRERELEASE: ${{ needs.verify.outputs.is_prerelease }}
         run: |
           assets=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
-          for asset in hf-model-downloader-arm64.dmg hf-model-downloader-windows-x86_64.zip; do
+          for asset in "hf-model-downloader-$RELEASE_VERSION-arm64.dmg" hf-model-downloader-windows-x86_64.zip; do
             if ! grep -qx "$asset" <<< "$assets"; then
               echo "Missing release asset: $asset"
               exit 1
             fi
           done
-          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          args=(--draft=false)
+          if [[ "$IS_PRERELEASE" == "true" ]]; then
+            args+=(--prerelease --latest=false)
+          else
+            args+=(--prerelease=false --latest)
+          fi
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" "${args[@]}"
 
   notify-homebrew-tap:
-    needs: publish-release
+    needs: [verify, publish-release]
+    if: needs.verify.outputs.is_prerelease == 'false'
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch tap package update
@@ -122,4 +166,4 @@ jobs:
           gh api repos/samzong/homebrew-tap/dispatches \
             -f event_type=homebrew-package-release \
             -f "client_payload[package]=hf-model-downloader" \
-            -f "client_payload[version]=${{ inputs.release_tag }}"
+            -f "client_payload[version]=$RELEASE_TAG"
