@@ -78,12 +78,17 @@ jobs:
 
       - name: Upload to Release
         env:
+          IS_PRERELEASE: ${{ needs.verify.outputs.is_prerelease }}
           RELEASE_VERSION: ${{ needs.verify.outputs.version }}
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GH_TOKEN || github.token }}
         run: |
           gh release upload "$RELEASE_TAG" \
             "dist/hf-model-downloader-$RELEASE_VERSION-arm64.dmg" \
             --clobber
+          if [[ "$IS_PRERELEASE" == "false" ]]; then
+            cp "dist/hf-model-downloader-$RELEASE_VERSION-arm64.dmg" dist/hf-model-downloader-arm64.dmg
+            gh release upload "$RELEASE_TAG" dist/hf-model-downloader-arm64.dmg --clobber
+          fi
 
   build-windows:
     needs: verify
@@ -140,7 +145,11 @@ jobs:
           IS_PRERELEASE: ${{ needs.verify.outputs.is_prerelease }}
         run: |
           assets=$(gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
-          for asset in "hf-model-downloader-$RELEASE_VERSION-arm64.dmg" hf-model-downloader-windows-x86_64.zip; do
+          required_assets=("hf-model-downloader-$RELEASE_VERSION-arm64.dmg" hf-model-downloader-windows-x86_64.zip)
+          if [[ "$IS_PRERELEASE" == "false" ]]; then
+            required_assets+=(hf-model-downloader-arm64.dmg)
+          fi
+          for asset in "${required_assets[@]}"; do
             if ! grep -qx "$asset" <<< "$assets"; then
               echo "Missing release asset: $asset"
               exit 1
